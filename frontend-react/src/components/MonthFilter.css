@@ -1,0 +1,162 @@
+/* Legacy month filter styles */
+.month-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.month-filter.loading {
+  color: #666;
+  font-style: italic;
+}
+
+.month-filter-label {
+  font-weight: 600;
+  color: #000;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.month-filter-select {
+  padding: 8px 12px;
+  border: 2px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 14px;
+  border-radius: 0;
+  min-width: 150px;
+  cursor: pointer;
+}
+
+.month-filter-select:focus {
+  outline: none;
+  border-color: #000;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+
+.month-filter-select option {
+  background: #fff;
+  color: #000;
+  padding: 4px;
+}
+
+/* Dashboard filters styles */
+.dashboard-filters {
+  background: #ffffff;
+  border: 2px solid #000000;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 150px;
+}
+
+.filter-label {
+  font-weight: 600;
+  color: #000000;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.filter-select,
+.filter-input {
+  padding: 0.5rem 0.75rem;
+  border: 2px solid #000000;
+  background: #ffffff;
+  color: #000000;
+  font-size: 0.875rem;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.filter-select:focus,
+.filter-input:focus {
+  outline: none;
+  border-color: #000000;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+
+.filter-select option {
+  background: #ffffff;
+  color: #000000;
+  padding: 0.25rem;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.filter-actions .btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+/* Responsive design */
+@media (max-width: 1200px) {
+  .filter-row {
+    gap: 0.75rem;
+  }
+  
+  .filter-group {
+    min-width: 140px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-filters {
+    padding: 1rem;
+  }
+  
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .filter-group {
+    min-width: unset;
+    width: 100%;
+  }
+  
+  .filter-select,
+  .filter-input {
+    width: 100%;
+  }
+  
+  .filter-actions {
+    align-items: stretch;
+    justify-content: center;
+  }
+  
+  .filter-actions .btn {
+    flex: 1;
+  }
+
+  /* Legacy month filter responsive */
+  .month-filter {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .month-filter-select {
+    width: 100%;
+    min-width: unset;
+  }
+}

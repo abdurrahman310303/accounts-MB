@@ -1,0 +1,62 @@
+/* Accounts page specific styles */
+
+.positive {
+  color: #008000;
+  font-weight: 600;
+}
+
+.negative {
+  color: #d00;
+  font-weight: 600;
+}
+
+.badge {
+  background: #000;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.table th,
+.table td {
+  text-align: right;
+}
+
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+}
+
+.table th:nth-child(2),
+.table td:nth-child(2) {
+  text-align: center;
+}
+
+.table th:last-child,
+.table td:last-child {
+  text-align: center;
+}
+
+/* Monthly filter integration */
+.month-filter {
+  margin-bottom: 20px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .table {
+    font-size: 14px;
+  }
+  
+  .table th,
+  .table td {
+    padding: 8px 4px;
+  }
+  
+  .btn.btn-small {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+}

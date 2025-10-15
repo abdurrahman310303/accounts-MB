@@ -22,7 +22,7 @@ class CategoryService:
         query = """
         SELECT id, name, category_type, description
         FROM categories 
-        WHERE id = %s
+        WHERE id = $1
         """
         
         result = await self.db.fetch_one(query, category_id)

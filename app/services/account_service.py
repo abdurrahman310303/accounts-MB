@@ -15,7 +15,7 @@ class AccountService:
         """Create a new account"""
         query = """
         INSERT INTO accounts (name, account_type, default_currency, opening_balance, current_balance)
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id, name, account_type, default_currency, opening_balance, current_balance, 
                   is_active, created_at, updated_at
         """
@@ -38,7 +38,7 @@ class AccountService:
         query = """
         SELECT id, name, account_type, default_currency, opening_balance, current_balance, 
                is_active, created_at, updated_at
-        FROM accounts WHERE id = %s AND is_active = TRUE
+        FROM accounts WHERE id = $1 AND is_active = TRUE
         """
         
         result = await self.db.fetch_one(query, account_id)
@@ -50,10 +50,12 @@ class AccountService:
         """Get all accounts with optional filtering"""
         conditions = ["is_active = TRUE"]
         params = []
+        param_count = 1
         
         if account_type:
-            conditions.append("account_type = %s")
+            conditions.append(f"account_type = ${param_count}")
             params.append(account_type)
+            param_count += 1
         
         where_clause = "WHERE " + " AND ".join(conditions)
         
@@ -71,6 +73,7 @@ class AccountService:
         """Update account information"""
         set_clauses = []
         params = []
+        param_count = 1
         
         # Handle opening balance change - if opening balance changes, we need to recalculate current balance
         if 'opening_balance' in account_data:
@@ -84,7 +87,7 @@ class AccountService:
                 balance_difference = new_opening_balance - old_opening_balance
                 
                 # Get total transactions amount for this account
-                tx_query = "SELECT COALESCE(SUM(amount_pkr), 0) as total_tx FROM transactions WHERE account_id = %s"
+                tx_query = "SELECT COALESCE(SUM(amount_pkr), 0) as total_tx FROM transactions WHERE account_id = $1"
                 tx_result = await self.db.fetch_one(tx_query, account_id)
                 total_transactions = tx_result['total_tx'] if tx_result else Decimal('0')
                 
@@ -97,8 +100,9 @@ class AccountService:
         allowed_fields = ['name', 'account_type', 'default_currency', 'opening_balance', 'current_balance']
         for field in allowed_fields:
             if field in account_data:
-                set_clauses.append(f"{field} = %s")
+                set_clauses.append(f"{field} = ${param_count}")
                 params.append(account_data[field])
+                param_count += 1
         
         if not set_clauses:
             return await self.get_account(account_id)
@@ -109,7 +113,7 @@ class AccountService:
         query = f"""
         UPDATE accounts 
         SET {', '.join(set_clauses)}
-        WHERE id = %s
+        WHERE id = ${param_count}
         RETURNING id, name, account_type, default_currency, opening_balance, current_balance, 
                   is_active, created_at, updated_at
         """
@@ -122,20 +126,24 @@ class AccountService:
     async def delete_account(self, account_id: int) -> bool:
         """Delete an account (only if no transactions exist)"""
         # Check if account has transactions
-        check_query = "SELECT COUNT(*) as count FROM transactions WHERE account_id = %s"
+        check_query = "SELECT COUNT(*) as count FROM transactions WHERE account_id = $1"
         result = await self.db.fetch_one(check_query, account_id)
         
         if result['count'] > 0:
             raise ValueError("Cannot delete account with existing transactions")
         
-        delete_query = "DELETE FROM accounts WHERE id = %s"
+        delete_query = "DELETE FROM accounts WHERE id = $1"
         await self.db.execute(delete_query, account_id)
         return True
     
     async def get_account_summary(self, account_id: int) -> Optional[Dict[str, Any]]:
         """Get account summary with transactions and balance"""
+        # Simplified query without views
         query = """
-        SELECT * FROM account_summary WHERE account_id = %s
+        SELECT id, name, account_type, default_currency, opening_balance, current_balance, 
+               is_active, created_at, updated_at
+        FROM accounts 
+        WHERE id = $1 AND is_active = TRUE
         """
         
         result = await self.db.fetch_one(query, account_id)
@@ -143,19 +151,14 @@ class AccountService:
     
     async def get_accounts_summary(self, team_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get summary for all accounts"""
-        conditions = []
-        params = []
-        
-        if team_id:
-            conditions.append("team_id = %s")
-            params.append(team_id)
-        
-        where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
-        
-        query = f"""
-        SELECT * FROM account_summary {where_clause}
-        ORDER BY account_name
+        # Simplified query without views
+        query = """
+        SELECT id, name, account_type, default_currency, opening_balance, current_balance, 
+               is_active, created_at, updated_at
+        FROM accounts
+        WHERE is_active = TRUE
+        ORDER BY name
         """
         
-        results = await self.db.fetch_all(query, *params)
+        results = await self.db.fetch_all(query)
         return [dict(row) for row in results]

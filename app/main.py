@@ -88,12 +88,12 @@ async def api_info():
     }
 
 # Include routers
-from app.routers import accounts, transactions, categories, teams
+from app.routers import accounts # , transactions, categories, teams
 
 app.include_router(accounts.router, prefix="/api/v1")
-app.include_router(transactions.router, prefix="/api/v1")
-app.include_router(categories.router, prefix="/api/v1")
-app.include_router(teams.router, prefix="/api/v1")
+# app.include_router(transactions.router, prefix="/api/v1")
+# app.include_router(categories.router, prefix="/api/v1")
+# app.include_router(teams.router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn

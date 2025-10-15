@@ -22,7 +22,8 @@ allowed_origins = [
     "http://localhost:3000",  # Local development
     "http://localhost:5173",  # Vite dev server
     "https://accounts-mb.vercel.app",  # Your Vercel deployment
-    "https://*.vercel.app",  # Any Vercel preview deployments
+    "https://accounts-mb-git-main-abdurrahman310303.vercel.app",  # Vercel git branch
+    "*",  # Allow all origins for now (change this for production security)
 ]
 
 # Add environment-based origins

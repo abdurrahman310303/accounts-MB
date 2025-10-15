@@ -42,10 +42,15 @@ class Settings(BaseSettings):
 # Global settings instance
 settings = Settings()
 
+# Debug database configuration
+print(f"Environment: {settings.environment}")
+print(f"Database URL: {settings.database_url}")
+
 # Construct database URLs if not provided or if using Railway
 if os.getenv("DATABASE_URL"):
     # Railway or other cloud provider
     settings.database_url = os.getenv("DATABASE_URL")
+    print(f"Using Railway DATABASE_URL: {settings.database_url}")
     # Parse individual components from DATABASE_URL if needed
     if settings.database_url.startswith("postgresql://"):
         # Convert to psycopg format
@@ -53,6 +58,7 @@ if os.getenv("DATABASE_URL"):
 elif not settings.database_url or settings.database_url == "postgresql+psycopg://username:password@localhost/finance_tracker":
     # Local development
     settings.database_url = f"postgresql+psycopg://{settings.database_user}:{settings.database_password}@{settings.database_host}:{settings.database_port}/{settings.database_name}"
+    print(f"Using local database: {settings.database_url}")
 
 # For direct psycopg connection (without SQLAlchemy)
 def get_direct_database_url():

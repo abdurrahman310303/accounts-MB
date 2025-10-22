@@ -17,7 +17,7 @@ class TransactionService:
         amount_pkr = transaction_data.amount
         
         # Get sender account details
-        sender_query = "SELECT current_balance, name FROM accounts WHERE id = %s"
+        sender_query = "SELECT current_balance, name FROM accounts WHERE id = $1"
         sender_result = await self.db.fetch_one(sender_query, transaction_data.account_id)
         
         if not sender_result:
@@ -32,7 +32,7 @@ class TransactionService:
         
         if transaction_data.counterparty and transaction_data.counterparty != 'External':
             # Check if counterparty is an internal account
-            counterparty_query = "SELECT id, current_balance, name FROM accounts WHERE name = %s"
+            counterparty_query = "SELECT id, current_balance, name FROM accounts WHERE name = $1"
             receiver_result = await self.db.fetch_one(counterparty_query, transaction_data.counterparty)
             
             if receiver_result:
@@ -53,14 +53,21 @@ class TransactionService:
         elif is_inter_account_transfer:
             is_outgoing_transaction = True  # Already converted to negative above
         else:
-            # Check if category indicates this is an expense
-            category_query = "SELECT name, category_type FROM categories WHERE id = %s"
-            category_result = await self.db.fetch_one(category_query, transaction_data.category_id)
-            if category_result and category_result['category_type'] == 'expense':
-                # Convert positive amount to negative for expense
-                transaction_data.amount = -abs(transaction_data.amount)
-                amount_pkr = transaction_data.amount
-                is_outgoing_transaction = True
+            # Check if category indicates this is an expense or transfer
+            if transaction_data.category_id:
+                category_query = "SELECT name, category_type FROM categories WHERE id = $1"
+                category_result = await self.db.fetch_one(category_query, transaction_data.category_id)
+                
+                # Validate counterparty for transfer transactions
+                if category_result and category_result['category_type'] == 'transfer':
+                    if not transaction_data.counterparty or transaction_data.counterparty.strip() == '':
+                        raise ValueError("Counterparty is required for transfer transactions")
+                
+                if category_result and category_result['category_type'] == 'expense':
+                    # Convert positive amount to negative for expense
+                    transaction_data.amount = -abs(transaction_data.amount)
+                    amount_pkr = transaction_data.amount
+                    is_outgoing_transaction = True
         
         # For outgoing transactions, check if sender has sufficient balance
         if is_outgoing_transaction:

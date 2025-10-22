@@ -100,6 +100,17 @@ function Transactions() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
+      // Get selected category to check if it's a transfer
+      const selectedCategory = categories.find(c => c.id === parseInt(formData.category_id))
+      
+      // Validate counterparty for transfer transactions
+      if (selectedCategory?.category_type === 'transfer') {
+        if (!formData.counterparty || formData.counterparty.trim() === '') {
+          setError('Counterparty is required for transfer transactions')
+          return
+        }
+      }
+      
       const transactionData = {
         ...formData,
         amount: parseFloat(formData.amount),
@@ -865,11 +876,15 @@ function Transactions() {
             const selectedCategory = categories.find(cat => cat.id === parseInt(formData.category_id))
             return selectedCategory?.category_type === 'transfer' && (
               <div className="form-group">
-                <label className="form-label">Counterparty Account</label>
+                <label className="form-label">Counterparty Account <span style={{color: 'red'}}>*</span></label>
                 <select
                   className="form-input"
                   value={formData.counterparty}
                   onChange={(e) => setFormData({...formData, counterparty: e.target.value})}
+                  required
+                  style={{
+                    borderColor: !formData.counterparty ? '#ff6b6b' : '#ccc'
+                  }}
                 >
                   <option value="">Select Counterparty Account</option>
                   <option value="External">External (Non-account)</option>

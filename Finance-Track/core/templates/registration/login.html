@@ -1,0 +1,43 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Login - Finance Tracker{% endblock %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 2rem auto;">
+    <div class="card">
+        <div class="card-header">Login</div>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div>
+                <label for="{{ form.username.id_for_label }}">Username:</label>
+                {{ form.username }}
+            </div>
+            
+            <div>
+                <label for="{{ form.password.id_for_label }}">Password:</label>
+                {{ form.password }}
+            </div>
+            
+            {% if form.errors %}
+            <div class="message error">
+                {% for field, errors in form.errors.items %}
+                    {% for error in errors %}
+                        {{ error }}
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </div>
+        </form>
+        
+        <p style="margin-top: 1rem; text-align: center;">
+            <small>Use the admin panel to create users and set up teams.</small>
+        </p>
+    </div>
+</div>
+{% endblock %}

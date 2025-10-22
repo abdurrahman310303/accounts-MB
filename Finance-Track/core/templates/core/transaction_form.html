@@ -1,0 +1,112 @@
+<form method="post">
+{% csrf_token %}
+
+<!-- Transaction Type -->
+<div class="form-group">
+    {{ form.transaction_type.label_tag }}
+    {{ form.transaction_type }}
+    {% if form.transaction_type.errors %}
+        <div class="error">{{ form.transaction_type.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Amount -->
+<div class="form-group">
+    {{ form.amount.label_tag }}
+    {{ form.amount }}
+    {% if form.amount.errors %}
+        <div class="error">{{ form.amount.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Description -->
+<div class="form-group">
+    {{ form.description.label_tag }}
+    {{ form.description }}
+    {% if form.description.errors %}
+        <div class="error">{{ form.description.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Date -->
+<div class="form-group">
+    {{ form.transaction_date.label_tag }}
+    {{ form.transaction_date }}
+    {% if form.transaction_date.errors %}
+        <div class="error">{{ form.transaction_date.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Team (hidden for transfers and owners_equity) -->
+<div class="form-group" id="team-field">
+    {{ form.team.label_tag }}
+    {{ form.team }}
+    {% if form.team.errors %}
+        <div class="error">{{ form.team.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Account -->
+<div class="form-group">
+    {{ form.account.label_tag }}
+    {{ form.account }}
+    {% if form.account.errors %}
+        <div class="error">{{ form.account.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Counter Party Account (shown only for transfers) -->
+<div class="form-group" id="counter-party-field" style="display: none;">
+    {{ form.counter_party_account.label_tag }}
+    {{ form.counter_party_account }}
+    {% if form.counter_party_account.errors %}
+        <div class="error">{{ form.counter_party_account.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Category (main category dropdown) -->
+<div class="form-group" id="category-field">
+    <label for="id_category">Category:</label>
+    <select name="category" id="id_category" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <option value="">Select Category</option>
+    </select>
+    {% if form.category.errors %}
+        <div class="error">{{ form.category.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Subcategory (shown only for expense) -->
+<div class="form-group" id="subcategory-field" style="display: none;">
+    {{ form.subcategory.label_tag }}
+    <select name="subcategory" id="id_subcategory" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <option value="">Select Subcategory</option>
+    </select>
+    {% if form.subcategory.errors %}
+        <div class="error">{{ form.subcategory.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Exchange Rate (shown when non-PKR currency is involved) -->
+<div class="form-group" id="exchange-rate-field" style="display: none;">
+    <label for="exchange_rate" id="exchange-rate-label">Exchange Rate to PKR:</label>
+    <input type="number" step="0.0001" name="exchange_rate_to_pkr" id="exchange_rate" value="1.0000" class="form-control" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+    <small style="color: #666;" id="exchange-rate-help">Enter the rate: 1 [Currency] = X PKR</small>
+</div>
+
+<!-- Hidden data for JavaScript -->
+<script type="application/json" id="form-data">
+{
+    "main_categories_by_type": {{ main_categories_by_type|safe }},
+    "subcategories_by_parent": {{ subcategories_by_parent|safe }},
+    "accounts_data": {{ accounts_data|safe }},
+    "teams_data": {{ teams_data|safe }}{% if transaction %},
+    "edit_mode": {
+        "transaction_id": {{ transaction.id }},
+        "transaction_type": "{{ transaction.transaction_type }}",
+        "team_id": {% if transaction.team %}{{ transaction.team.id }}{% else %}null{% endif %},
+        "category_id": {% if transaction.category %}{% if transaction.category.parent %}{{ transaction.category.parent.id }}{% else %}{{ transaction.category.id }}{% endif %}{% else %}null{% endif %},
+        "subcategory_id": {% if transaction.category and transaction.category.parent %}{{ transaction.category.id }}{% else %}null{% endif %}
+    }{% endif %}
+}
+</script>
+</form>

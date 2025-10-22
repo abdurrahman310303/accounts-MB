@@ -1,0 +1,643 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Accounts - Finance Tracker{% endblock %}
+
+{% block content %}
+<h2>Accounts</h2>
+
+<div style="margin-bottom: 1rem;">
+    <button class="btn btn-primary" onclick="openModal('addAccountModal')">Add New Account</button>
+    <button class="btn btn-outline-warning" onclick="openModal('updateRatesModal')">💱 Update Exchange Rates</button>
+</div>
+
+<!-- Exchange Rates Section -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">💱 Current Exchange Rates</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for currency in currencies %}
+            {% if currency.code != 'PKR' %}
+            <div class="col-md-4 mb-2">
+                <div class="p-3 border rounded">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ currency.code }}</strong>
+                            <small class="text-muted d-block">{{ currency.name }}</small>
+                        </div>
+                        <div class="text-end">
+                            <span class="h6 mb-0">{{ currency.exchange_rate_to_pkr|floatformat:2 }}</span>
+                            <small class="text-muted d-block">PKR</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% if accounts %}
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Currency</th>
+            <th>Exchange Rate</th>
+            <th>Opening Balance</th>
+            <th>Current Balance</th>
+            <th>Current Balance (PKR)</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for account in accounts %}
+        <tr>
+            <td>{{ account.name }}</td>
+            <td>{{ account.get_account_type_display }}</td>
+            <td>{{ account.currency.code }}</td>
+            <td>
+                {% if account.currency.code == 'PKR' %}
+                    1.0000
+                {% else %}
+                    {{ account.currency.exchange_rate_to_pkr|floatformat:4 }}
+                {% endif %}
+            </td>
+            <td>{{ account.opening_balance|floatformat:2 }}</td>
+            <td><strong>{{ account.current_balance|floatformat:2 }}</strong></td>
+            <td>{{ account.current_balance_pkr|floatformat:2 }}</td>
+            <td>{% if account.is_active %}Active{% else %}Inactive{% endif %}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-info" style="margin-right: 0.25rem;" onclick="viewAccount({{ account.id }})">
+                    👁️ View
+                </button>
+                <button class="btn btn-sm btn-outline-primary" style="margin-right: 0.25rem;" onclick="editAccount({{ account.id }})">
+                    ✏️ Edit
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteAccount({{ account.id }}, '{{ account.name|escapejs }}')">
+                    🗑️ Delete
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card">
+    <p>No accounts found. Start by adding your first account.</p>
+    <button class="btn btn-primary" onclick="openModal('addAccountModal')">Add Account</button>
+</div>
+{% endif %}
+
+<!-- Add Account Modal -->
+<div id="addAccountModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add New Account</h3>
+            <span class="close" onclick="closeModal('addAccountModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="addAccountForm">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="add_name">Account Name:</label>
+                    <input type="text" id="add_name" name="name" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="add_account_type">Account Type:</label>
+                    <select id="add_account_type" name="account_type" class="form-control" required>
+                        <option value="">Select Type</option>
+                        {% for value, label in account_types %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="add_currency">Currency:</label>
+                    <select id="add_currency" name="currency" class="form-control" required>
+                        <option value="">Select Currency</option>
+                        {% for currency in currencies %}
+                        <option value="{{ currency.id }}">{{ currency.code }} - {{ currency.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="add_opening_balance">Opening Balance:</label>
+                    <input type="number" id="add_opening_balance" name="opening_balance" class="form-control" step="0.01" value="0.00">
+                </div>
+                
+                <div class="form-group">
+                    <label for="add_description">Description:</label>
+                    <textarea id="add_description" name="description" class="form-control" rows="3"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('addAccountModal')">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="submitAccountForm('add')">Add Account</button>
+        </div>
+    </div>
+</div>
+
+<!-- View Account Modal -->
+<div id="viewAccountModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Account Details</h3>
+            <span class="close" onclick="closeModal('viewAccountModal')">&times;</span>
+        </div>
+        <div class="modal-body" id="viewAccountContent">
+            <!-- Content will be loaded dynamically -->
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('viewAccountModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Account Modal -->
+<div id="editAccountModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Account</h3>
+            <span class="close" onclick="closeModal('editAccountModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="editAccountForm">
+                {% csrf_token %}
+                <input type="hidden" id="edit_account_id" name="account_id">
+                
+                <div class="form-group">
+                    <label for="edit_name">Account Name:</label>
+                    <input type="text" id="edit_name" name="name" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_account_type">Account Type:</label>
+                    <select id="edit_account_type" name="account_type" class="form-control" required>
+                        {% for value, label in account_types %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_currency">Currency:</label>
+                    <select id="edit_currency" name="currency" class="form-control" required>
+                        {% for currency in currencies %}
+                        <option value="{{ currency.id }}">{{ currency.code }} - {{ currency.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_opening_balance">Opening Balance:</label>
+                    <input type="number" id="edit_opening_balance" name="opening_balance" class="form-control" step="0.01">
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_description">Description:</label>
+                    <textarea id="edit_description" name="description" class="form-control" rows="3"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="edit_is_active" name="is_active"> Account is active
+                    </label>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('editAccountModal')">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="submitAccountForm('edit')">Update Account</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Account Modal -->
+<div id="deleteAccountModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Delete Account</h3>
+            <span class="close" onclick="closeModal('deleteAccountModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="warning-message">
+                <p>⚠️ Are you sure you want to delete this account?</p>
+                <p><strong id="deleteAccountName"></strong></p>
+                <p>This action cannot be undone and will affect all associated transactions.</p>
+            </div>
+            <input type="hidden" id="delete_account_id">
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('deleteAccountModal')">Cancel</button>
+            <button type="button" class="btn btn-danger" onclick="confirmDeleteAccount()">Yes, Delete Account</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Styles -->
+<style>
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: #ffffff;
+    margin: 5% auto;
+    border: 2px solid #000000;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1rem;
+    background-color: #000000;
+    color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.close {
+    color: #ffffff;
+    font-size: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close:hover {
+    opacity: 0.7;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    padding: 1rem 1.5rem;
+    background-color: #f8f9fa;
+    border-top: 1px solid #ddd;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #000000;
+}
+
+.warning-message {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.warning-message p {
+    margin: 0.5rem 0;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.btn-outline-info {
+    color: #17a2b8;
+    border-color: #17a2b8;
+}
+
+.btn-outline-info:hover {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.btn-outline-primary {
+    color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-outline-primary:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-outline-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-outline-danger:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+.account-details {
+    font-size: 0.95rem;
+}
+
+.detail-row {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-row strong {
+    color: #000000;
+    min-width: 140px;
+    text-align: left;
+}
+
+.detail-row span {
+    text-align: right;
+    flex: 1;
+}
+</style>
+
+<!-- JavaScript for Modal Operations -->
+<script>
+// Modal Functions
+function openModal(modalId) {
+    document.getElementById(modalId).style.display = 'block';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+    
+    // Clear forms when closing
+    if (modalId === 'addAccountModal') {
+        document.getElementById('addAccountForm').reset();
+    } else if (modalId === 'editAccountModal') {
+        document.getElementById('editAccountForm').reset();
+    }
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+
+// Account Operations
+function viewAccount(accountId) {
+    fetch(`/accounts/${accountId}/`, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            // Create clean account details HTML
+            const accountDetailsHtml = `
+                <div class="account-details">
+                    <div class="detail-row">
+                        <strong>Account Name:</strong> ${data.name}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Account Type:</strong> ${data.account_type}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Currency:</strong> ${data.currency}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Opening Balance:</strong> ${data.opening_balance}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Current Balance:</strong> ${data.current_balance}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Opening Balance (PKR):</strong> ${data.opening_balance_pkr}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Current Balance (PKR):</strong> ${data.current_balance_pkr}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Status:</strong> ${data.is_active}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Description:</strong> ${data.description}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Created:</strong> ${data.created_at}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('viewAccountContent').innerHTML = accountDetailsHtml;
+            openModal('viewAccountModal');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showErrorPopup('Failed to load account details');
+        });
+}
+
+function editAccount(accountId) {
+    fetch(`/accounts/${accountId}/edit/`, {
+        headers: {
+            'Accept': 'application/json',
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            // Populate edit form
+            document.getElementById('edit_account_id').value = data.id;
+            document.getElementById('edit_name').value = data.name;
+            document.getElementById('edit_account_type').value = data.account_type;
+            document.getElementById('edit_currency').value = data.currency;
+            document.getElementById('edit_opening_balance').value = data.opening_balance;
+            document.getElementById('edit_description').value = data.description || '';
+            document.getElementById('edit_is_active').checked = data.is_active;
+            
+            openModal('editAccountModal');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showErrorPopup('Failed to load account data');
+        });
+}
+
+function deleteAccount(accountId, accountName) {
+    document.getElementById('delete_account_id').value = accountId;
+    document.getElementById('deleteAccountName').textContent = accountName;
+    openModal('deleteAccountModal');
+}
+
+function submitAccountForm(action) {
+    const form = document.getElementById(action + 'AccountForm');
+    const formData = new FormData(form);
+    
+    let url, method;
+    if (action === 'add') {
+        url = '/accounts/add/';
+        method = 'POST';
+    } else if (action === 'edit') {
+        const accountId = document.getElementById('edit_account_id').value;
+        url = `/accounts/${accountId}/edit/`;
+        method = 'POST';
+    }
+    
+    // Add CSRF token
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch(url, {
+        method: method,
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        } else {
+            return response.json().then(err => Promise.reject(err));
+        }
+    })
+    .then(data => {
+        showSuccessPopup(data.message || 'Account ' + (action === 'add' ? 'added' : 'updated') + ' successfully!');
+        closeModal(action + 'AccountModal');
+        location.reload(); // Refresh the page to show changes
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        let errorMessage = 'Failed to ' + action + ' account. Please try again.';
+        if (error.errors) {
+            // Display form validation errors
+            const errorMessages = Object.values(error.errors).flat();
+            errorMessage = errorMessages.join(' ');
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        showErrorPopup(errorMessage);
+    });
+}
+
+function confirmDeleteAccount() {
+    const accountId = document.getElementById('delete_account_id').value;
+    
+    fetch(`/accounts/${accountId}/delete/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        } else {
+            return response.json().then(err => Promise.reject(err));
+        }
+    })
+    .then(data => {
+        showSuccessPopup(data.message || 'Account deleted successfully!');
+        closeModal('deleteAccountModal');
+        location.reload(); // Refresh the page to show changes
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        let errorMessage = 'Failed to delete account. Please try again.';
+        if (error.message) {
+            errorMessage = error.message;
+        }
+        showErrorPopup(errorMessage);
+    });
+}
+</script>
+
+<!-- Update Exchange Rates Modal -->
+<div id="updateRatesModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>💱 Update Exchange Rates</h2>
+            <span class="close" onclick="closeModal('updateRatesModal')">&times;</span>
+        </div>
+        <form method="post" action="{% url 'update_exchange_rates' %}">
+            {% csrf_token %}
+            <div class="modal-body">
+                <p class="text-muted mb-3">Update exchange rates to PKR:</p>
+                
+                {% for currency in currencies %}
+                {% if currency.code != 'PKR' %}
+                <div class="form-group mb-3">
+                    <label for="rate_{{ currency.code }}">{{ currency.code }} - {{ currency.name }}</label>
+                    <div class="input-group">
+                        <span class="input-group-text">1 {{ currency.code }} =</span>
+                        <input 
+                            type="number" 
+                            step="0.01" 
+                            min="0.01"
+                            class="form-control" 
+                            id="rate_{{ currency.code }}" 
+                            name="rate_{{ currency.code }}" 
+                            value="{{ currency.exchange_rate_to_pkr|floatformat:2 }}"
+                            required
+                        >
+                        <span class="input-group-text">PKR</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('updateRatesModal')">Cancel</button>
+                <button type="submit" class="btn btn-warning">💱 Update Rates</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,161 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Dashboard - Finance Tracker{% endblock %}
+
+{% block content %}
+<h2 style="font-weight: 700; margin-bottom: 2rem;">Finance Tracker Dashboard</h2>
+
+<div class="row g-3">
+    <!-- USD Exchange Rate Card (appears first) -->
+    {% if usd_currency %}
+    <div class="col-md-3 col-sm-6">
+        <div class="card shadow-sm border-0 rounded-3" style="min-height: 160px;">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">💱 USD Exchange Rate</h6>
+                <form id="usdRateForm" class="d-flex flex-column align-items-center">
+                    {% csrf_token %}
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <label for="usd_exchange_rate" class="me-2 fw-semibold">1 USD =</label>
+                        <input 
+                            type="number" 
+                            id="usd_exchange_rate" 
+                            name="usd_exchange_rate" 
+                            value="{{ usd_currency.exchange_rate_to_pkr|floatformat:4 }}" 
+                            step="0.0001" 
+                            min="0" 
+                            class="form-control form-control-sm text-center" 
+                            style="width: 100px;"
+                            required
+                        >
+                        <span class="ms-2 fw-semibold">PKR</span>
+                    </div>
+                    <button type="button" onclick="updateUSDRate()" class="btn btn-dark btn-sm mt-1 px-3">
+                        Update
+                    </button>
+                </form>
+                <small class="text-secondary d-block mt-2">
+                    Last: {{ usd_currency.exchange_rate_to_pkr|floatformat:4 }} PKR/USD
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- PKR & USD Balance Cards -->
+    {% for currency_code, currency_data in accounts_by_currency.items %}
+        {% if currency_code == 'PKR' or currency_code == 'USD' %}
+        <div class="col-md-3 col-sm-6">
+            <div class="card shadow-sm border-0 rounded-3" style="min-height: 160px;">
+                <div class="card-body text-center">
+                    <h6 class="card-subtitle mb-2 text-muted">Total {{ currency_code }} Balance</h6>
+                    <h3 class="fw-bold my-2">{{ currency_data.total|floatformat:2 }}</h3>
+                    <p class="text-muted mb-1">{{ currency_code }}</p>
+                    <small class="text-secondary">
+                        {{ currency_data.accounts|length }} account{{ currency_data.accounts|length|pluralize }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
+
+    {% if 'PKR' not in accounts_by_currency %}
+    <div class="col-md-3 col-sm-6">
+        <div class="card shadow-sm border-0 rounded-3" style="min-height: 160px;">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Total PKR Balance</h6>
+                <h3 class="fw-bold my-2">0.00</h3>
+                <p class="text-muted mb-1">PKR</p>
+                <small class="text-secondary">0 accounts</small>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if 'USD' not in accounts_by_currency %}
+    <div class="col-md-3 col-sm-6">
+        <div class="card shadow-sm border-0 rounded-3" style="min-height: 160px;">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Total USD Balance</h6>
+                <h3 class="fw-bold my-2">0.00</h3>
+                <p class="text-muted mb-1">USD</p>
+                <small class="text-secondary">0 accounts</small>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Total Balance Card (same small style) -->
+    <div class="col-md-3 col-sm-6">
+        <div class="card shadow-sm border-0 rounded-3" style="min-height: 160px;">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">💰 Total Balance (All Accounts)</h6>
+                <h3 class="fw-bold my-2">{{ total_balance_pkr|floatformat:2 }}</h3>
+                <p class="text-muted mb-1">PKR</p>
+                <small class="text-secondary">
+                    Consolidated from all currencies
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Second Row: Income, Expense, Profit/Loss -->
+<div class="row g-3 mt-1">
+    <div class="col-md-4 col-sm-6">
+        <div class="card shadow-sm border-0 rounded-3" style="min-height: 160px;">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">📈 Total Income</h6>
+                <h3 class="fw-bold my-2">{{ total_income|floatformat:2 }}</h3>
+                <p class="text-muted mb-1">PKR</p>
+                <small class="text-secondary">Sum of all recorded incomes</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 col-sm-6">
+        <div class="card shadow-sm border-0 rounded-3" style="min-height: 160px;">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">📉 Total Expense</h6>
+                <h3 class="fw-bold my-2">{{ total_expense|floatformat:2 }}</h3>
+                <p class="text-muted mb-1">PKR</p>
+                <small class="text-secondary">Sum of all recorded expenses</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 col-sm-6">
+        <div class="card shadow-sm border-0 rounded-3" style="min-height: 160px;">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">💹 Profit / Loss</h6>
+                <h3 class="fw-bold my-2 {% if profit_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {{ profit_loss|floatformat:2 }}
+                </h3>
+                <p class="text-muted mb-1">PKR</p>
+                <small class="text-secondary">Income minus expenses</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateUSDRate() {
+    const form = document.getElementById('usdRateForm');
+    const formData = new FormData(form);
+    formData.append('update_usd_rate', 'true');
+    
+    fetch('/', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message || 'USD exchange rate updated successfully!');
+        setTimeout(() => location.reload(), 1000);
+    })
+    .catch(() => alert('Failed to update USD exchange rate. Please try again.'));
+}
+</script>
+
+{% endblock %}

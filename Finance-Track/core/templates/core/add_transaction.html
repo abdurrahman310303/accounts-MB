@@ -1,0 +1,567 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Add Transaction{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <h2>Add Transaction</h2>
+</div>
+
+<div class="form-container">
+    <form method="post" id="transaction-form">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            {{ form.transaction_type.label_tag }}
+            {{ form.transaction_type }}
+            {% if form.transaction_type.errors %}
+                <div class="error">{{ form.transaction_type.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            {{ form.amount.label_tag }}
+            {{ form.amount }}
+            {% if form.amount.errors %}
+                <div class="error">{{ form.amount.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            {{ form.description.label_tag }}
+            {{ form.description }}
+            {% if form.description.errors %}
+                <div class="error">{{ form.description.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            {{ form.transaction_date.label_tag }}
+            {{ form.transaction_date }}
+            {% if form.transaction_date.errors %}
+                <div class="error">{{ form.transaction_date.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group" id="team-field">
+            {{ form.team.label_tag }}
+            {{ form.team }}
+            {% if form.team.errors %}
+                <div class="error">{{ form.team.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.account.id_for_label }}" id="account-label">{{ form.account.label }}</label>
+            {{ form.account }}
+            {% if form.account.errors %}
+                <div class="error">{{ form.account.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group" id="category-field">
+            {{ form.category.label_tag }}
+            <select name="{{ form.category.name }}" id="{{ form.category.id_for_label }}">
+                <option value="">Select Category</option>
+            </select>
+            {% if form.category.errors %}
+                <div class="error">{{ form.category.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group" id="subcategory-field" style="display: none;">
+            {{ form.subcategory.label_tag }}
+            <select name="{{ form.subcategory.name }}" id="{{ form.subcategory.id_for_label }}">
+                <option value="">Select Subcategory</option>
+            </select>
+            {% if form.subcategory.errors %}
+                <div class="error">{{ form.subcategory.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group" id="counter-party-field" style="display: none;">
+            {{ form.counter_party_account.label_tag }}
+            {{ form.counter_party_account }}
+            {% if form.counter_party_account.errors %}
+                <div class="error">{{ form.counter_party_account.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div class="form-group" id="exchange-rate-field" style="display: none;">
+            {{ form.exchange_rate_to_pkr.label_tag }}
+            {{ form.exchange_rate_to_pkr }}
+            {% if form.exchange_rate_to_pkr.errors %}
+                <div class="error">{{ form.exchange_rate_to_pkr.errors }}</div>
+            {% endif %}
+            <small class="form-text">Enter the exchange rate from transaction currency to PKR</small>
+        </div>
+
+        <div class="form-group" id="counter-party-rate-field" style="display: none;">
+            {{ form.counter_party_exchange_rate.label_tag }}
+            {{ form.counter_party_exchange_rate }}
+            {% if form.counter_party_exchange_rate.errors %}
+                <div class="error">{{ form.counter_party_exchange_rate.errors }}</div>
+            {% endif %}
+            <small class="form-text">Enter the exchange rate from counter party currency to PKR</small>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">Add Transaction</button>
+            <a href="{% url 'dashboard' %}" class="btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+{{ main_categories_by_type|json_script:"main-categories-data" }}
+{{ subcategories_by_parent|json_script:"subcategories-data" }}
+
+<!-- Error and Success Popup Styles -->
+<style>
+.error-popup, .success-popup {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    max-width: 400px;
+    animation: slideIn 0.3s ease-out;
+}
+
+.error-content, .success-content {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.error-content {
+    border-left: 4px solid #dc3545;
+}
+
+.success-content {
+    border-left: 4px solid #28a745;
+}
+
+.error-icon, .success-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.error-message, .success-message {
+    flex: 1;
+    color: #333;
+    font-weight: 500;
+}
+
+.error-close, .success-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+    line-height: 1;
+}
+
+.error-close:hover, .success-close:hover {
+    color: #333;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.form-error {
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+}
+
+.field-error {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+    display: block;
+}
+</style>
+
+<script>
+// Show error messages as popups
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-popup';
+    errorDiv.innerHTML = `
+        <div class="error-content">
+            <span class="error-icon">⚠️</span>
+            <span class="error-message">${message}</span>
+            <button class="error-close" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+    `;
+    document.body.appendChild(errorDiv);
+    
+    setTimeout(() => {
+        if (errorDiv.parentElement) {
+            errorDiv.remove();
+        }
+    }, 5000);
+}
+
+// Show success messages as popups
+function showSuccess(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-popup';
+    successDiv.innerHTML = `
+        <div class="success-content">
+            <span class="success-icon">✅</span>
+            <span class="success-message">${message}</span>
+            <button class="success-close" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+    `;
+    document.body.appendChild(successDiv);
+    
+    setTimeout(() => {
+        if (successDiv.parentElement) {
+            successDiv.remove();
+        }
+    }, 3000);
+}
+
+// Validate required fields
+function validateRequiredFields(transactionType) {
+    const errors = [];
+    
+    // Always required fields
+    const amount = document.getElementById('{{ form.amount.id_for_label }}').value;
+    const description = document.getElementById('{{ form.description.id_for_label }}').value;
+    const account = document.getElementById('{{ form.account.id_for_label }}').value;
+    
+    if (!amount || parseFloat(amount) <= 0) {
+        errors.push('Amount must be greater than 0');
+    }
+    
+    if (!description.trim()) {
+        errors.push('Description is required');
+    }
+    
+    if (!account) {
+        errors.push('Account is required');
+    }
+    
+    // Type-specific validation
+    if (transactionType === 'transfer') {
+        const counterParty = document.getElementById('{{ form.counter_party_account.id_for_label }}').value;
+        if (!counterParty) {
+            errors.push('Counter party account is required for transfers');
+        }
+        if (account === counterParty) {
+            errors.push('Source and destination accounts cannot be the same');
+        }
+    } else if (transactionType === 'income') {
+        const category = document.getElementById('{{ form.category.id_for_label }}').value;
+        const team = document.getElementById('{{ form.team.id_for_label }}').value;
+        
+        if (!category) {
+            errors.push('Category is required for income transactions');
+        }
+        
+        if (!team) {
+            errors.push('Team is required for income transactions');
+        }
+    } else if (transactionType === 'expense') {
+        const category = document.getElementById('{{ form.category.id_for_label }}').value;
+        const subcategory = document.getElementById('{{ form.subcategory.id_for_label }}').value;
+        const team = document.getElementById('{{ form.team.id_for_label }}').value;
+        
+        if (!category) {
+            errors.push('Category is required for expense transactions');
+        }
+        
+        if (!subcategory) {
+            errors.push('Subcategory is required for expense transactions');
+        }
+        
+        if (!team) {
+            errors.push('Team is required for expense transactions');
+        }
+    } else if (transactionType === 'owners_equity') {
+        const category = document.getElementById('{{ form.category.id_for_label }}').value;
+        
+        if (!category) {
+            errors.push('Category is required for owners equity transactions');
+        }
+    }
+    
+    return errors;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Get category and account data from Django
+    let mainCategoriesData = {};
+    let subcategoriesData = {};
+    try {
+        mainCategoriesData = JSON.parse(document.getElementById('main-categories-data').textContent);
+        subcategoriesData = JSON.parse(document.getElementById('subcategories-data').textContent);
+    } catch (e) {
+        console.warn('Categories data not available:', e);
+    }
+
+    const transactionTypeField = document.getElementById('{{ form.transaction_type.id_for_label }}');
+    const categoryField = document.getElementById('category-field');
+    const categorySelect = document.getElementById('{{ form.category.id_for_label }}');
+    const subcategoryField = document.getElementById('subcategory-field');
+    const subcategorySelect = document.getElementById('{{ form.subcategory.id_for_label }}');
+    const counterPartyField = document.getElementById('counter-party-field');
+    const teamField = document.getElementById('team-field');
+    const accountLabel = document.getElementById('account-label');
+    const teamSelect = document.getElementById('{{ form.team.id_for_label }}');
+    const counterPartySelect = document.getElementById('{{ form.counter_party_account.id_for_label }}');
+
+    function toggleFields() {
+        if (!transactionTypeField) return;
+        
+        const transactionType = transactionTypeField.value;
+        const teamSelect = document.getElementById('{{ form.team.id_for_label }}');
+        const counterPartySelect = document.getElementById('{{ form.counter_party_account.id_for_label }}');
+
+        if (transactionType === 'transfer') {
+            // Show counter party account, hide category, subcategory and team
+            counterPartyField.style.display = 'block';
+            categoryField.style.display = 'none';
+            subcategoryField.style.display = 'none';
+            teamField.style.display = 'none';
+            accountLabel.textContent = 'From Account:';
+            
+            // Remove required attribute from hidden fields and clear values
+            if (teamSelect) {
+                teamSelect.removeAttribute('required');
+                teamSelect.value = '';
+            }
+            if (categorySelect) {
+                categorySelect.removeAttribute('required');
+                categorySelect.value = '';
+            }
+            if (subcategorySelect) {
+                subcategorySelect.removeAttribute('required');
+                subcategorySelect.value = '';
+            }
+            // Add required to visible fields
+            if (counterPartySelect) {
+                counterPartySelect.setAttribute('required', 'required');
+            }
+        } else if (transactionType === 'income') {
+            // Income: Show category and team, hide subcategory and counter party
+            counterPartyField.style.display = 'none';
+            categoryField.style.display = 'block';
+            subcategoryField.style.display = 'none';
+            teamField.style.display = 'block';
+            accountLabel.textContent = 'Account:';
+            
+            // Remove required from hidden fields and clear values
+            if (counterPartySelect) {
+                counterPartySelect.removeAttribute('required');
+                counterPartySelect.value = '';
+            }
+            if (subcategorySelect) {
+                subcategorySelect.removeAttribute('required');
+                subcategorySelect.value = '';
+            }
+            // Add required to visible fields
+            if (teamSelect) teamSelect.setAttribute('required', 'required');
+            if (categorySelect) categorySelect.setAttribute('required', 'required');
+            
+            // Update category options
+            updateCategoryOptions(transactionType);
+        } else if (transactionType === 'expense') {
+            // Expense: Show category, subcategory, and team, hide counter party
+            counterPartyField.style.display = 'none';
+            categoryField.style.display = 'block';
+            subcategoryField.style.display = 'block';
+            teamField.style.display = 'block';
+            accountLabel.textContent = 'Account:';
+            
+            // Remove required from hidden fields and clear values
+            if (counterPartySelect) {
+                counterPartySelect.removeAttribute('required');
+                counterPartySelect.value = '';
+            }
+            // Add required to visible fields
+            if (teamSelect) teamSelect.setAttribute('required', 'required');
+            if (categorySelect) categorySelect.setAttribute('required', 'required');
+            if (subcategorySelect) subcategorySelect.setAttribute('required', 'required');
+            
+            // Update category options
+            updateCategoryOptions(transactionType);
+        } else if (transactionType === 'owners_equity') {
+            // Owners Equity: Show category only, hide subcategory, team, and counter party
+            counterPartyField.style.display = 'none';
+            categoryField.style.display = 'block';
+            subcategoryField.style.display = 'none';
+            teamField.style.display = 'none';
+            accountLabel.textContent = 'Account:';
+            
+            // Remove required from hidden fields and clear values
+            if (counterPartySelect) {
+                counterPartySelect.removeAttribute('required');
+                counterPartySelect.value = '';
+            }
+            if (teamSelect) {
+                teamSelect.removeAttribute('required');
+                teamSelect.value = '';
+            }
+            if (subcategorySelect) {
+                subcategorySelect.removeAttribute('required');
+                subcategorySelect.value = '';
+            }
+            // Add required to visible fields
+            if (categorySelect) categorySelect.setAttribute('required', 'required');
+            
+            // Update category options
+            updateCategoryOptions(transactionType);
+        } else {
+            // Hide all conditional fields
+            counterPartyField.style.display = 'none';
+            categoryField.style.display = 'none';
+            subcategoryField.style.display = 'none';
+            teamField.style.display = 'block';
+            accountLabel.textContent = 'Account:';
+            
+            // Remove required from hidden fields and clear values
+            if (counterPartySelect) {
+                counterPartySelect.removeAttribute('required');
+                counterPartySelect.value = '';
+            }
+            if (categorySelect) {
+                categorySelect.removeAttribute('required');
+                categorySelect.value = '';
+            }
+            if (subcategorySelect) {
+                subcategorySelect.removeAttribute('required');
+                subcategorySelect.value = '';
+            }
+            // Add required to visible fields
+            if (teamSelect) {
+                teamSelect.setAttribute('required', 'required');
+            }
+        }
+    }
+
+    function updateCategoryOptions(transactionType) {
+        if (!categorySelect) return;
+        
+        // Clear existing options except the first one
+        categorySelect.innerHTML = '<option value="">Select Category</option>';
+        
+        // Clear subcategory options
+        if (subcategorySelect) {
+            subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+        }
+        
+        // Add main categories for the selected type
+        if (mainCategoriesData[transactionType]) {
+            mainCategoriesData[transactionType].forEach(function(category) {
+                const option = document.createElement('option');
+                option.value = category.id;
+                option.textContent = category.name;
+                categorySelect.appendChild(option);
+            });
+        }
+    }
+
+    function updateSubcategoryOptions(categoryId) {
+        if (!subcategorySelect) return;
+        
+        // Clear existing options
+        subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+        
+        // Add subcategories for the selected category
+        if (subcategoriesData[categoryId]) {
+            subcategoriesData[categoryId].forEach(function(subcategory) {
+                const option = document.createElement('option');
+                option.value = subcategory.id;
+                option.textContent = subcategory.name;
+                subcategorySelect.appendChild(option);
+            });
+        }
+    }
+
+    // Listen for category selection (for expense transactions)
+    if (categorySelect) {
+        categorySelect.addEventListener('change', function() {
+            const transactionType = transactionTypeField.value;
+            if (transactionType === 'expense') {
+                const categoryId = this.value;
+                updateSubcategoryOptions(categoryId);
+            }
+        });
+    }
+
+    // Form submission validation
+    const form = document.getElementById('transaction-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const transactionType = transactionTypeField.value;
+            
+            if (!transactionType) {
+                e.preventDefault();
+                showError('Please select a transaction type');
+                return;
+            }
+            
+            const errors = validateRequiredFields(transactionType);
+            
+            if (errors.length > 0) {
+                e.preventDefault();
+                errors.forEach(error => showError(error));
+                return;
+            }
+            
+            // Show loading state
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Adding Transaction...';
+                
+                // Re-enable after 5 seconds in case of error
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Add Transaction';
+                }, 5000);
+            }
+        });
+    }
+
+    // Listen for transaction type changes
+    if (transactionTypeField) {
+        transactionTypeField.addEventListener('change', function() {
+            toggleFields();
+        });
+    }
+    
+    // Initialize on page load
+    toggleFields();
+
+    // Add real-time validation feedback
+    if (form) {
+        const inputs = form.querySelectorAll('input[required], select[required]');
+        inputs.forEach(input => {
+            input.addEventListener('blur', function() {
+                if (this.hasAttribute('required') && !this.value) {
+                    this.classList.add('form-error');
+                } else {
+                    this.classList.remove('form-error');
+                }
+            });
+            
+            input.addEventListener('input', function() {
+                if (this.classList.contains('form-error') && this.value) {
+                    this.classList.remove('form-error');
+                }
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

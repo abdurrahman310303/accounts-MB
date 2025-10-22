@@ -1,0 +1,77 @@
+{% extends 'core/base.html' %}
+
+{% block title %}{{ account.name }} - Finance Tracker{% endblock %}
+
+{% block content %}
+<h2>{{ account.name }}</h2>
+
+<div class="card">
+    <div class="card-header">Account Details</div>
+    <div class="row">
+        <div class="col">
+            <p><strong>Type:</strong> {{ account.get_account_type_display }}</p>
+            <p><strong>Currency:</strong> {{ account.currency.name }} ({{ account.currency.code }})</p>
+            <p><strong>Team:</strong> {{ account.team.name }}</p>
+        </div>
+        <div class="col">
+            <p><strong>Balance:</strong> {{ account.balance|floatformat:2 }} {{ account.currency.code }}</p>
+            <p><strong>Balance (PKR):</strong> {{ account.balance_pkr|floatformat:2 }} PKR</p>
+            <p><strong>Status:</strong> {% if account.is_active %}Active{% else %}Inactive{% endif %}</p>
+        </div>
+    </div>
+    {% if account.description %}
+    <p><strong>Description:</strong> {{ account.description }}</p>
+    {% endif %}
+</div>
+
+<h3>Transactions</h3>
+
+{% if transactions %}
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Amount</th>
+            <th>Category</th>
+            <th>Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for transaction in transactions %}
+        <tr>
+            <td>{{ transaction.transaction_date|date:"M d, Y H:i" }}</td>
+            <td>{{ transaction.get_transaction_type_display }}</td>
+            <td>{{ transaction.description }}</td>
+            <td>
+                {% if transaction.transaction_type == 'transfer' %}
+                    {% if transaction.from_account == account %}
+                        -{{ transaction.amount|floatformat:2 }}
+                    {% else %}
+                        +{{ transaction.amount|floatformat:2 }}
+                    {% endif %}
+                {% elif transaction.transaction_type == 'income' %}
+                    +{{ transaction.amount|floatformat:2 }}
+                {% else %}
+                    -{{ transaction.amount|floatformat:2 }}
+                {% endif %}
+                {{ account.currency.code }}
+            </td>
+            <td>{{ transaction.category.name|default:"-" }}</td>
+            <td>{{ transaction.notes|default:"-" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card">
+    <p>No transactions found for this account.</p>
+</div>
+{% endif %}
+
+<div style="margin-top: 2rem;">
+    <a href="{% url 'add_transaction' %}" class="btn btn-primary">Add Transaction</a>
+    <a href="{% url 'accounts_list' %}" class="btn">Back to Accounts</a>
+</div>
+{% endblock %}

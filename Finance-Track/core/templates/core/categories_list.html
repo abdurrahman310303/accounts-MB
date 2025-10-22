@@ -1,0 +1,304 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Categories - Finance Tracker{% endblock %}
+
+{% block content %}
+<h2>Categories</h2>
+
+<div style="margin-bottom: 1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap;">
+        <div style="display: flex; gap: 1rem; flex: 1; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px; max-width: 300px;">
+                <label for="typeFilter" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Filter by Transaction Type:</label>
+                <select id="typeFilter" class="form-control" style="width: 100%;">
+                    <option value="all">All Types</option>
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                    <option value="transfer">Transfer</option>
+                    <option value="owners_equity">Owners Equity</option>
+                </select>
+            </div>
+            <div style="flex: 1; min-width: 200px; max-width: 300px;">
+                <label for="categoryFilter" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Filter by Category:</label>
+                <select id="categoryFilter" class="form-control" style="width: 100%;">
+                    <option value="all">All Categories</option>
+                    {% for category in all_categories %}
+                        <option value="{{ category.id }}" data-type="{{ category.category_type }}">
+                            {{ category.name }} ({{ category.get_category_type_display }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div>
+            <a href="{% url 'add_category' %}" class="btn btn-primary">Add New Category</a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .category-tree {
+        margin-bottom: 2rem;
+    }
+    .category-tree h3 {
+        margin-bottom: 1rem;
+        text-transform: capitalize;
+    }
+    .category-item {
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        margin-bottom: 0.5rem;
+        background: #fff;
+    }
+    .category-item.level-0 {
+        margin-left: 0;
+        background: #f8f9fa;
+        font-weight: bold;
+    }
+    .category-item.level-1 {
+        margin-left: 2rem;
+        background: #fff;
+    }
+    .category-item.level-2 {
+        margin-left: 4rem;
+        background: #fafafa;
+    }
+    .category-item.level-3 {
+        margin-left: 6rem;
+        background: #f5f5f5;
+    }
+    .category-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .category-details {
+        flex: 1;
+    }
+    .category-actions {
+        white-space: nowrap;
+    }
+    .category-description {
+        font-size: 0.9rem;
+        color: #666;
+        font-style: italic;
+        margin-top: 0.25rem;
+    }
+    .category-tree.hidden,
+    .category-item.hidden {
+        display: none;
+    }
+</style>
+
+{% for type, hierarchies in categories_by_type.items %}
+<div class="category-tree" data-type="{{ type }}">
+    <h3>{{ type|title }} Categories</h3>
+    
+    {% if hierarchies %}
+        {% if type == 'expense' %}
+            {# Show hierarchical tree for expense categories #}
+            {% for hierarchy in hierarchies %}
+                {% include 'core/category_tree_item.html' with item=hierarchy level=0 %}
+            {% endfor %}
+        {% else %}
+            {# Show flat list for income and transfer categories #}
+            {% for hierarchy in hierarchies %}
+                <div class="category-item level-0" data-category-id="{{ hierarchy.category.id }}">
+                    <div class="category-info">
+                        <div class="category-details">
+                            <strong>{{ hierarchy.category.name }}</strong>
+                            {% if hierarchy.category.description %}
+                                <div class="category-description">{{ hierarchy.category.description }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="category-actions">
+                            <a href="{% url 'edit_category' hierarchy.category.id %}" class="btn btn-sm btn-outline-primary" style="margin-right: 0.5rem;">
+                                Edit
+                            </a>
+                            <a href="{% url 'delete_category' hierarchy.category.id %}" class="btn btn-sm btn-outline-danger">
+                                Delete
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% else %}
+        <div class="card">
+            <p>No {{ type }} categories found.</p>
+        </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const typeFilter = document.getElementById('typeFilter');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const categoryTrees = document.querySelectorAll('.category-tree');
+        
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlType = urlParams.get('type');
+        const urlCategory = urlParams.get('category');
+        
+        // Load saved filter preferences or use URL parameters
+        const savedTypeFilter = urlType || localStorage.getItem('categoryTypeFilter') || 'all';
+        const savedCategoryFilter = urlCategory || localStorage.getItem('categoryIdFilter') || 'all';
+        
+        typeFilter.value = savedTypeFilter;
+        categoryFilter.value = savedCategoryFilter;
+        
+        // Initialize category dropdown based on type filter
+        updateCategoryDropdown(savedTypeFilter);
+        
+        // Apply filters
+        applyFilters();
+        
+        typeFilter.addEventListener('change', function() {
+            const selectedType = this.value;
+            // Save preference
+            localStorage.setItem('categoryTypeFilter', selectedType);
+            
+            // Filter category dropdown options based on selected type
+            updateCategoryDropdown(selectedType);
+            
+            // Reset category filter when type changes
+            categoryFilter.value = 'all';
+            localStorage.setItem('categoryIdFilter', 'all');
+            
+            // Update URL
+            updateURL();
+            
+            applyFilters();
+        });
+        
+        categoryFilter.addEventListener('change', function() {
+            const selectedCategory = this.value;
+            // Save preference
+            localStorage.setItem('categoryIdFilter', selectedCategory);
+            
+            // Update URL
+            updateURL();
+            
+            applyFilters();
+        });
+        
+        function updateURL() {
+            const selectedType = typeFilter.value;
+            const selectedCategory = categoryFilter.value;
+            
+            const params = new URLSearchParams();
+            if (selectedType !== 'all') {
+                params.set('type', selectedType);
+            }
+            if (selectedCategory !== 'all') {
+                params.set('category', selectedCategory);
+            }
+            
+            const newURL = params.toString() ? `?${params.toString()}` : window.location.pathname;
+            window.history.replaceState({}, '', newURL);
+        }
+        
+        function updateCategoryDropdown(selectedType) {
+            const options = categoryFilter.querySelectorAll('option');
+            
+            options.forEach(function(option) {
+                if (option.value === 'all') {
+                    option.style.display = '';
+                    return;
+                }
+                
+                const optionType = option.getAttribute('data-type');
+                if (selectedType === 'all' || selectedType === optionType) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+        }
+        
+        function applyFilters() {
+            const selectedType = typeFilter.value;
+            const selectedCategory = categoryFilter.value;
+            
+            console.log('Applying filters:', { selectedType, selectedCategory }); // Debug
+            
+            categoryTrees.forEach(function(tree) {
+                const treeType = tree.getAttribute('data-type');
+                
+                // Check type filter
+                const typeMatches = (selectedType === 'all' || selectedType === treeType);
+                
+                if (!typeMatches) {
+                    tree.classList.add('hidden');
+                    return;
+                }
+                
+                // If no specific category selected, show the tree
+                if (selectedCategory === 'all' || selectedCategory === '' || !selectedCategory) {
+                    tree.classList.remove('hidden');
+                    // Show all items within the tree
+                    const allItems = tree.querySelectorAll('.category-item');
+                    allItems.forEach(item => item.classList.remove('hidden'));
+                    return;
+                }
+                
+                // Apply category filter - show selected category and all its children
+                const categoryItems = Array.from(tree.querySelectorAll('.category-item'));
+                let hasVisibleItems = false;
+                let foundParent = false;
+                let parentLevel = -1;
+                
+                categoryItems.forEach(function(item, index) {
+                    // Get category ID from data attribute
+                    const categoryId = item.getAttribute('data-category-id');
+                    
+                    if (!categoryId) {
+                        item.classList.add('hidden');
+                        return;
+                    }
+                    
+                    console.log('Checking item:', { categoryId, selectedCategory, matches: categoryId === selectedCategory }); // Debug
+                    
+                    // Check if this is the selected main category
+                    if (categoryId === selectedCategory) {
+                        item.classList.remove('hidden');
+                        hasVisibleItems = true;
+                        foundParent = true;
+                        parentLevel = parseInt(item.className.match(/level-(\d+)/)?.[1] || 0);
+                        console.log('Found parent category at level:', parentLevel); // Debug
+                    } else if (foundParent) {
+                        // Show all children after the parent
+                        const currentLevel = parseInt(item.className.match(/level-(\d+)/)?.[1] || 0);
+                        
+                        console.log('Checking child:', { currentLevel, parentLevel }); // Debug
+                        
+                        if (currentLevel > parentLevel) {
+                            // This is a child of our selected category
+                            item.classList.remove('hidden');
+                            hasVisibleItems = true;
+                        } else {
+                            // Reached a sibling or different branch, stop showing
+                            foundParent = false;
+                            item.classList.add('hidden');
+                        }
+                    } else {
+                        item.classList.add('hidden');
+                    }
+                });
+                
+                console.log('Tree visibility:', { treeType, hasVisibleItems }); // Debug
+                
+                // Show/hide the entire tree based on whether it has visible items
+                if (hasVisibleItems) {
+                    tree.classList.remove('hidden');
+                } else {
+                    tree.classList.add('hidden');
+                }
+            });
+        }
+    });
+</script>
+
+{% endblock %}

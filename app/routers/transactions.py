@@ -32,15 +32,18 @@ async def get_transactions(
 ):
     """Get transactions with filtering and pagination"""
     service = TransactionService(db)
-    return await service.get_transactions(
-        account_id=account_id,
-        category_id=category_id,
-        team_id=team_id,
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit,
-        offset=offset
-    )
+    try:
+        return await service.get_transactions(
+            account_id=account_id,
+            category_id=category_id,
+            team_id=team_id,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching transactions: {str(e)}")
 
 @router.get("/{transaction_id}", response_model=Transaction)
 async def get_transaction(

@@ -1,0 +1,354 @@
+<form method="post">
+{% csrf_token %}
+
+<!-- Transaction Type -->
+<div class="form-group">
+    {{ form.transaction_type.label_tag }}
+    {{ form.transaction_type }}
+    {% if form.transaction_type.errors %}
+        <div class="error">{{ form.transaction_type.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Amount -->
+<div class="form-group">
+    {{ form.amount.label_tag }}
+    {{ form.amount }}
+    {% if form.amount.errors %}
+        <div class="error">{{ form.amount.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Description -->
+<div class="form-group">
+    {{ form.description.label_tag }}
+    {{ form.description }}
+    {% if form.description.errors %}
+        <div class="error">{{ form.description.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Date -->
+<div class="form-group">
+    {{ form.transaction_date.label_tag }}
+    {{ form.transaction_date }}
+    {% if form.transaction_date.errors %}
+        <div class="error">{{ form.transaction_date.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Team (hidden for transfers and owners_equity) -->
+<div class="form-group" id="team-field">
+    {{ form.team.label_tag }}
+    {{ form.team }}
+    {% if form.team.errors %}
+        <div class="error">{{ form.team.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Account -->
+<div class="form-group">
+    {{ form.account.label_tag }}
+    {{ form.account }}
+    {% if form.account.errors %}
+        <div class="error">{{ form.account.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Counter Party Account (shown only for transfers) -->
+<div class="form-group" id="counter-party-field" style="display: none;">
+    {{ form.counter_party_account.label_tag }}
+    {{ form.counter_party_account }}
+    {% if form.counter_party_account.errors %}
+        <div class="error">{{ form.counter_party_account.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Category (main category dropdown) -->
+<div class="form-group" id="category-field">
+    <label for="id_category">Category:</label>
+    <select name="category" id="id_category" class="form-control">
+        <option value="">Select Category</option>
+    </select>
+    {% if form.category.errors %}
+        <div class="error">{{ form.category.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Subcategory (shown only for expense) -->
+<div class="form-group" id="subcategory-field" style="display: none;">
+    {{ form.subcategory.label_tag }}
+    <select name="subcategory" id="id_subcategory" class="form-control">
+        <option value="">Select Subcategory</option>
+    </select>
+    {% if form.subcategory.errors %}
+        <div class="error">{{ form.subcategory.errors }}</div>
+    {% endif %}
+</div>
+
+<!-- Exchange Rate (shown when USD account is involved) -->
+<div class="form-group" id="exchange-rate-field" style="display: none;">
+    <label for="exchange_rate" id="exchange-rate-label">Exchange Rate to PKR:</label>
+    <input type="number" step="0.0001" name="exchange_rate_to_pkr" id="exchange_rate" value="1.0000" class="form-control">
+    <small style="color: #666;" id="exchange-rate-help">Enter the rate: 1 [Currency] = X PKR</small>
+</div>
+
+<!-- Hidden data for JavaScript -->
+<script type="application/json" id="form-data">
+{
+    "main_categories_by_type": {{ main_categories_by_type|safe }},
+    "subcategories_by_parent": {{ subcategories_by_parent|safe }},
+    "accounts_data": {{ accounts_data|safe }},
+    "teams_data": {{ teams_data|safe }}
+}
+</script>
+</form>
+
+<script>
+// Initialize form after it's loaded
+(function() {
+    // Get form data
+    const formDataScript = document.getElementById('form-data');
+    if (!formDataScript) {
+        console.error('Form data script not found');
+        return;
+    }
+    
+    const formData = JSON.parse(formDataScript.textContent);
+    const mainCategoriesByType = formData.main_categories_by_type;
+    const subcategoriesByParent = formData.subcategories_by_parent;
+    window.accountsData = formData.accounts_data;
+    const teamsData = formData.teams_data;
+    
+    // Get form elements
+    const transactionTypeSelect = document.getElementById('id_transaction_type');
+    const categorySelect = document.getElementById('id_category');
+    const subcategorySelect = document.getElementById('id_subcategory');
+    const teamField = document.getElementById('team-field');
+    const categoryField = document.getElementById('category-field');
+    const subcategoryField = document.getElementById('subcategory-field');
+    const counterPartyField = document.getElementById('counter-party-field');
+    const exchangeRateField = document.getElementById('exchange-rate-field');
+    const accountSelect = document.getElementById('id_account');
+    const counterPartyAccountSelect = document.getElementById('id_counter_party_account');
+    
+    // Populate teams dropdown
+    function populateTeamsDropdown() {
+        const teamSelect = document.getElementById('id_team');
+        if (teamSelect && teamsData) {
+            teamSelect.innerHTML = '<option value="">Select Team</option>';
+            teamsData.forEach(team => {
+                const option = document.createElement('option');
+                option.value = team.id;
+                option.textContent = team.name;
+                teamSelect.appendChild(option);
+            });
+        }
+    }
+    
+    // Add currency data to account select options
+    function addCurrencyDataToSelects() {
+        if (accountSelect && counterPartyAccountSelect && accountsData) {
+            accountsData.forEach(account => {
+                const accountOption = accountSelect.querySelector(`option[value="${account.id}"]`);
+                if (accountOption) {
+                    accountOption.setAttribute('data-currency', account.currency);
+                    accountOption.setAttribute('data-exchange-rate', account.exchange_rate);
+                }
+                
+                const counterPartyOption = counterPartyAccountSelect.querySelector(`option[value="${account.id}"]`);
+                if (counterPartyOption) {
+                    counterPartyOption.setAttribute('data-currency', account.currency);
+                    counterPartyOption.setAttribute('data-exchange-rate', account.exchange_rate);
+                }
+            });
+        }
+    }
+    
+    // Handle transaction type change
+    function handleTransactionTypeChange() {
+        const transactionType = transactionTypeSelect.value;
+        
+        // Clear categories and subcategories
+        categorySelect.innerHTML = '<option value="">Select Category</option>';
+        subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+        
+        // Populate main categories based on transaction type
+        if (mainCategoriesByType && mainCategoriesByType[transactionType]) {
+            mainCategoriesByType[transactionType].forEach(category => {
+                const option = document.createElement('option');
+                option.value = category.id;
+                option.textContent = category.name;
+                categorySelect.appendChild(option);
+            });
+        }
+        
+        // Show/hide fields based on transaction type
+        if (transactionType === 'income') {
+            // Income: show team, category; hide subcategory, counter_party
+            teamField.style.display = 'block';
+            categoryField.style.display = 'block';
+            subcategoryField.style.display = 'none';
+            counterPartyField.style.display = 'none';
+            
+        } else if (transactionType === 'expense') {
+            // Expense: show team, category, subcategory; hide counter_party
+            teamField.style.display = 'block';
+            categoryField.style.display = 'block';
+            subcategoryField.style.display = 'block';
+            counterPartyField.style.display = 'none';
+            
+        } else if (transactionType === 'owners_equity') {
+            // Owners Equity: show category; hide team, subcategory, counter_party
+            teamField.style.display = 'none';
+            categoryField.style.display = 'block';
+            subcategoryField.style.display = 'none';
+            counterPartyField.style.display = 'none';
+            
+        } else if (transactionType === 'transfer') {
+            // Transfer: show counter_party; hide team, category, subcategory
+            teamField.style.display = 'none';
+            categoryField.style.display = 'none';
+            subcategoryField.style.display = 'none';
+            counterPartyField.style.display = 'block';
+        }
+        
+        // Check for exchange rate requirements
+        checkExchangeRateRequirement();
+    }
+    
+    // Handle category change (for expense transactions)
+    function handleCategoryChange() {
+        const transactionType = transactionTypeSelect.value;
+        const selectedCategoryId = categorySelect.value;
+        
+        if (transactionType === 'expense' && selectedCategoryId) {
+            // Populate subcategories for the selected category
+            subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+            
+            if (subcategoriesByParent && subcategoriesByParent[selectedCategoryId]) {
+                subcategoriesByParent[selectedCategoryId].forEach(subcategory => {
+                    const option = document.createElement('option');
+                    option.value = subcategory.id;
+                    option.textContent = subcategory.name;
+                    subcategorySelect.appendChild(option);
+                });
+            }
+        }
+    }
+    
+    // Check if exchange rate field should be shown
+    function checkExchangeRateRequirement() {
+        const accountSelect = document.getElementById('id_account');
+        const counterPartySelect = document.getElementById('id_counter_party_account');
+        const transactionType = transactionTypeSelect.value;
+        const exchangeRateField = document.getElementById('exchange-rate-field');
+        const exchangeRateInput = document.getElementById('exchange_rate');
+        const exchangeRateLabel = document.getElementById('exchange-rate-label');
+        const exchangeRateHelp = document.getElementById('exchange-rate-help');
+        
+        if (!accountSelect || !transactionType) return;
+        
+        const selectedAccount = accountSelect.value;
+        const selectedCounterParty = counterPartySelect ? counterPartySelect.value : null;
+        
+        let showExchangeRate = false;
+        let currencyInvolved = 'PKR';
+        let rateLabel = 'Exchange Rate to PKR:';
+        let rateHelp = 'Enter the rate: 1 [Currency] = X PKR';
+        let defaultExchangeRate = 1.0000;
+        
+        if (transactionType === 'transfer' && selectedAccount && selectedCounterParty) {
+            // Get currency information for both accounts
+            const accountOption = accountSelect.querySelector(`option[value="${selectedAccount}"]`);
+            const counterPartyOption = counterPartySelect.querySelector(`option[value="${selectedCounterParty}"]`);
+            
+            const fromCurrency = accountOption ? accountOption.dataset.currency : 'PKR';
+            const toCurrency = counterPartyOption ? counterPartyOption.dataset.currency : 'PKR';
+            
+            // Only show exchange rate if USD is involved
+            if ((fromCurrency === 'USD' || toCurrency === 'USD') && fromCurrency !== toCurrency) {
+                showExchangeRate = true;
+                currencyInvolved = 'USD';
+                
+                if (fromCurrency === 'USD') {
+                    rateLabel = 'Exchange Rate (1 USD = ? PKR):';
+                    rateHelp = 'Enter: 1 USD = X PKR (for sending account)';
+                    const accountData = accountsData.find(acc => acc.id == selectedAccount);
+                    if (accountData && accountData.exchange_rate) {
+                        defaultExchangeRate = accountData.exchange_rate;
+                    }
+                } else {
+                    rateLabel = 'Exchange Rate (1 USD = ? PKR):';
+                    rateHelp = 'Enter: 1 USD = X PKR (for receiving account)';
+                    exchangeRateInput.name = 'counter_party_exchange_rate';
+                    const accountData = accountsData.find(acc => acc.id == selectedCounterParty);
+                    if (accountData && accountData.exchange_rate) {
+                        defaultExchangeRate = accountData.exchange_rate;
+                    }
+                }
+            }
+        } else if (transactionType !== 'transfer' && selectedAccount) {
+            // Income/Expense/Owners Equity transaction
+            const accountOption = accountSelect.querySelector(`option[value="${selectedAccount}"]`);
+            if (accountOption && accountOption.dataset.currency === 'USD') {
+                showExchangeRate = true;
+                currencyInvolved = 'USD';
+                rateLabel = 'Exchange Rate (1 USD = ? PKR):';
+                rateHelp = 'Enter: 1 USD = X PKR';
+                exchangeRateInput.name = 'exchange_rate_to_pkr';
+                
+                const accountData = accountsData.find(acc => acc.id == selectedAccount);
+                if (accountData && accountData.exchange_rate) {
+                    defaultExchangeRate = accountData.exchange_rate;
+                }
+            }
+        }
+        
+        // Show/hide exchange rate field
+        if (exchangeRateField && exchangeRateInput) {
+            if (showExchangeRate) {
+                exchangeRateField.style.display = 'block';
+                if (exchangeRateLabel) exchangeRateLabel.textContent = rateLabel;
+                if (exchangeRateHelp) exchangeRateHelp.textContent = rateHelp;
+                exchangeRateInput.placeholder = `e.g., ${defaultExchangeRate}`;
+                
+                // Set the default exchange rate
+                if (!exchangeRateInput.value || exchangeRateInput.value === '1.0000') {
+                    exchangeRateInput.value = defaultExchangeRate.toFixed(4);
+                }
+            } else {
+                exchangeRateField.style.display = 'none';
+                exchangeRateInput.value = '1.0000';
+                exchangeRateInput.name = 'exchange_rate_to_pkr';
+            }
+        }
+    }
+    
+    // Add event listeners
+    if (transactionTypeSelect) {
+        transactionTypeSelect.addEventListener('change', handleTransactionTypeChange);
+    }
+    if (categorySelect) {
+        categorySelect.addEventListener('change', handleCategoryChange);
+    }
+    if (accountSelect) {
+        accountSelect.addEventListener('change', checkExchangeRateRequirement);
+    }
+    if (counterPartyAccountSelect) {
+        counterPartyAccountSelect.addEventListener('change', checkExchangeRateRequirement);
+    }
+    
+    // Initialize the form
+    populateTeamsDropdown();
+    addCurrencyDataToSelects();
+    handleTransactionTypeChange();
+    
+    // Set today's date as default
+    const dateInput = document.getElementById('id_transaction_date');
+    if (dateInput && !dateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+    }
+})();
+</script>

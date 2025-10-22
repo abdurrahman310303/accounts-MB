@@ -1,0 +1,257 @@
+{% extends 'core/base.html' %}
+
+{% block title %}View Transaction{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <h2>Transaction Details</h2>
+    <div class="actions">
+        <a href="{% url 'edit_transaction' transaction.id %}" class="btn-primary">Edit</a>
+        <a href="{% url 'delete_transaction' transaction.id %}" class="btn-danger">Delete</a>
+        <a href="{% url 'transactions_list' %}" class="btn-secondary">Back to List</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Transaction #{{ transaction.id }}</h3>
+        <span class="transaction-type {{ transaction.transaction_type }}">
+            {{ transaction.get_transaction_type_display|title }}
+        </span>
+    </div>
+    
+    <div class="card-body">
+        <div class="transaction-details">
+            <div class="detail-row">
+                <span class="label">Amount:</span>
+                <span class="value amount">
+                    {% if transaction.currency %}
+                        {{ transaction.currency.symbol }}{{ transaction.amount|floatformat:2 }}
+                        {% if transaction.currency.code != 'PKR' %}
+                            <small>(= PKR {{ transaction.amount_in_pkr|floatformat:2 }})</small>
+                        {% endif %}
+                    {% else %}
+                        {{ transaction.amount|floatformat:2 }}
+                    {% endif %}
+                </span>
+            </div>
+            
+            {% if transaction.currency and transaction.currency.code != 'PKR' %}
+            <div class="detail-row">
+                <span class="label">Exchange Rate Used:</span>
+                <span class="value">
+                    1 {{ transaction.currency.code }} = {{ transaction.exchange_rate_to_pkr|floatformat:4 }} PKR
+                    <small class="rate-date">(Rate on transaction date)</small>
+                </span>
+            </div>
+            {% endif %}
+            
+            {% if transaction.transaction_type == 'transfer' and transaction.counter_party_amount %}
+            <div class="detail-row">
+                <span class="label">Counter Party Amount:</span>
+                <span class="value">
+                    {% if transaction.counter_party_currency %}
+                        {{ transaction.counter_party_currency.symbol }}{{ transaction.counter_party_amount|floatformat:2 }}
+                        {% if transaction.counter_party_currency.code != 'PKR' %}
+                            <small>(= PKR {{ transaction.counter_party_amount|floatformat:2 }})</small>
+                        {% endif %}
+                    {% else %}
+                        {{ transaction.counter_party_amount|floatformat:2 }}
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
+            
+            {% if transaction.counter_party_currency and transaction.counter_party_currency.code != 'PKR' %}
+            <div class="detail-row">
+                <span class="label">Counter Party Rate Used:</span>
+                <span class="value">
+                    1 {{ transaction.counter_party_currency.code }} = {{ transaction.counter_party_exchange_rate|floatformat:4 }} PKR
+                </span>
+            </div>
+            {% endif %}
+            
+            <div class="detail-row">
+                <span class="label">Description:</span>
+                <span class="value">{{ transaction.description }}</span>
+            </div>
+            
+            <div class="detail-row">
+                <span class="label">Date:</span>
+                <span class="value">{{ transaction.transaction_date|date:"F d, Y g:i A" }}</span>
+            </div>
+            
+            {% if transaction.team %}
+            <div class="detail-row">
+                <span class="label">Team:</span>
+                <span class="value">{{ transaction.team.name }}</span>
+            </div>
+            {% endif %}
+            
+            <div class="detail-row">
+                <span class="label">Account:</span>
+                <span class="value">{{ transaction.account.name }}</span>
+            </div>
+            
+            {% if transaction.category %}
+            <div class="detail-row">
+                <span class="label">Category:</span>
+                <span class="value">
+                    {% if transaction.category.parent %}
+                        {{ transaction.category.parent.name }} → 
+                    {% endif %}
+                    {{ transaction.category.name }}
+                </span>
+            </div>
+            {% endif %}
+            
+            {% if transaction.counter_party_account %}
+            <div class="detail-row">
+                <span class="label">Counter Party Account:</span>
+                <span class="value">{{ transaction.counter_party_account.name }}</span>
+            </div>
+            {% endif %}
+            
+            {% if transaction.notes %}
+            <div class="detail-row">
+                <span class="label">Notes:</span>
+                <span class="value">{{ transaction.notes }}</span>
+            </div>
+            {% endif %}
+            
+            <div class="detail-row">
+                <span class="label">Created By:</span>
+                <span class="value">{{ transaction.created_by.username }}</span>
+            </div>
+            
+            <div class="detail-row">
+                <span class="label">Created On:</span>
+                <span class="value">{{ transaction.created_at|date:"F d, Y g:i A" }}</span>
+            </div>
+            
+            {% if transaction.updated_at != transaction.created_at %}
+            <div class="detail-row">
+                <span class="label">Last Updated:</span>
+                <span class="value">{{ transaction.updated_at|date:"F d, Y g:i A" }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.content-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.card-header {
+    padding: 1rem 1.5rem;
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.transaction-type {
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.transaction-type.income {
+    background: #d4edda;
+    color: #155724;
+}
+
+.transaction-type.expense {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.transaction-type.transfer {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.transaction-details {
+    display: grid;
+    gap: 1rem;
+}
+
+.detail-row {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.label {
+    font-weight: 600;
+    color: #333;
+}
+
+.value {
+    color: #666;
+}
+
+.amount {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+.rate-date {
+    display: block;
+    font-style: italic;
+    color: #888;
+    font-size: 0.8rem;
+}
+</style>
+{% endblock %}

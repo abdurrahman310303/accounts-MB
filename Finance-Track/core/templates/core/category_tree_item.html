@@ -1,0 +1,24 @@
+<div class="category-item level-{{ level }}" data-category-id="{{ item.category.id }}">
+    <div class="category-info">
+        <div class="category-details">
+            <strong>{{ item.category.name }}</strong>
+            {% if item.category.description %}
+                <div class="category-description">{{ item.category.description }}</div>
+            {% endif %}
+        </div>
+        <div class="category-actions">
+            <a href="{% url 'edit_category' item.category.id %}" class="btn btn-sm btn-outline-primary" style="margin-right: 0.5rem;">
+                Edit
+            </a>
+            <a href="{% url 'delete_category' item.category.id %}" class="btn btn-sm btn-outline-danger">
+                Delete
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if item.children %}
+    {% for child in item.children %}
+        {% include 'core/category_tree_item.html' with item=child level=level|add:1 %}
+    {% endfor %}
+{% endif %}

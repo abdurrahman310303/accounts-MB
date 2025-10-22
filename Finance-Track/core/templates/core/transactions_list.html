@@ -1,0 +1,1225 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Transactions - Finance Tracker{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<h2>Transactions</h2>
+
+<div style="margin-bottom: 1rem;">
+    <button type="button" onclick="openAddTransactionModal(); return false;" class="btn btn-primary">Add New Transaction</button>
+    
+    <!-- Filters -->
+    <div style="margin-top: 1rem;">
+        <a href="{% url 'transactions_list' %}" class="btn">All</a>
+        <a href="{% url 'transactions_list' %}?type=income" class="btn">Income</a>
+        <a href="{% url 'transactions_list' %}?type=expense" class="btn">Expense</a>
+        <a href="{% url 'transactions_list' %}?type=transfer" class="btn">Transfer</a>
+    </div>
+</div>
+
+{% if transactions %}
+<div class="table-container">
+    <table class="transactions-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Exchange Rate</th>
+                <th>Account</th>
+                <th>Category</th>
+                <th>Subcategory</th>
+                {% if user_teams|length > 1 %}<th>Team</th>{% endif %}
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transaction in transactions %}
+            <tr class="transaction-row {{ transaction.transaction_type }}" data-transaction-id="{{ transaction.id }}">
+                <td>{{ transaction.transaction_date|date:"m/d/Y" }}</td>
+                <td>
+                    <span class="transaction-type-badge {{ transaction.transaction_type }}">
+                        {{ transaction.get_transaction_type_display|title }}
+                    </span>
+                </td>
+                <td>{{ transaction.description|truncatechars:50 }}</td>
+                <td class="amount">
+                    {% if transaction.currency %}
+                        {{ transaction.currency.code }}{{ transaction.amount|floatformat:2 }}
+                        {% if transaction.currency.code != 'PKR' %}
+                            <small class="amount-pkr">(≈ PKR {{ transaction.amount_pkr|floatformat:2 }})</small>
+                        {% endif %}
+                    {% else %}
+                        PKR {{ transaction.amount|floatformat:2 }}
+                    {% endif %}
+                </td>
+                <td class="exchange-rate">
+                    {% if transaction.exchange_rate_to_pkr and transaction.exchange_rate_to_pkr != 1.0000 %}
+                        1 {{ transaction.currency.code }} = {{ transaction.exchange_rate_to_pkr|floatformat:4 }} PKR
+                    {% elif transaction.currency.code == 'PKR' or transaction.exchange_rate_to_pkr == 1.0000 %}
+                        -
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>
+                    {% if transaction.transaction_type == 'transfer' %}
+                        {{ transaction.account.name }} → {{ transaction.counter_party_account.name }}
+                    {% else %}
+                        {{ transaction.account.name }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if transaction.category %}
+                        {% if transaction.category.parent %}
+                            {{ transaction.category.parent.name }}
+                        {% else %}
+                            {{ transaction.category.name }}
+                        {% endif %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if transaction.category and transaction.category.parent %}
+                        {{ transaction.category.name }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                {% if user_teams|length > 1 %}
+                <td>{{ transaction.team.name|default:"-" }}</td>
+                {% endif %}
+                <td class="actions">
+                    <div class="action-buttons">
+                        <button onclick="viewTransaction({{ transaction.id }})" class="btn-small btn-view" title="View">👁️</button>
+                        <button onclick="editTransaction({{ transaction.id }})" class="btn-small btn-edit" title="Edit">✏️</button>
+                        <button onclick="deleteTransaction({{ transaction.id }})" class="btn-small btn-delete" title="Delete">🗑️</button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+.table-container {
+    overflow-x: auto;
+    margin-top: 1rem;
+}
+
+.transactions-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.transactions-table th,
+.transactions-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+}
+
+.transactions-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #333;
+}
+
+.transaction-row:hover {
+    background: #f8f9fa;
+}
+
+.transaction-type-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.transaction-type-badge.income {
+    background: #d4edda;
+    color: #155724;
+}
+
+.transaction-type-badge.expense {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.transaction-type-badge.transfer {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.amount {
+    font-weight: 600;
+    text-align: right;
+}
+
+.amount-pkr {
+    display: block;
+    font-weight: normal;
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.exchange-rate {
+    text-align: center;
+    font-size: 0.9rem;
+    color: #555;
+    white-space: nowrap;
+}
+
+.actions {
+    text-align: center;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.25rem;
+    justify-content: center;
+}
+
+.btn-small {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+}
+
+.btn-view {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.btn-view:hover {
+    background: #dee2e6;
+}
+
+.btn-edit {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.btn-edit:hover {
+    background: #ffeaa7;
+}
+
+.btn-delete {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.btn-delete:hover {
+    background: #f5c6cb;
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed !important;
+    z-index: 9999 !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background-color: rgba(0,0,0,0.5) !important;
+    display: none !important;
+}
+
+.modal[style*="display: block"] {
+    display: block !important;
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 90%;
+    max-width: 600px;
+    border-radius: 8px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    position: absolute;
+    right: 20px;
+    top: 15px;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.modal-actions {
+    margin-top: 20px;
+    text-align: right;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.error {
+    color: #d32f2f;
+    font-size: 12px;
+    margin-top: 5px;
+}
+</style>
+{% else %}
+<div class="card">
+    <p>No transactions found.</p>
+    <button type="button" onclick="openAddTransactionModal(); return false;" class="btn btn-primary">Add Transaction</button>
+</div>
+{% endif %}
+
+<!-- Add Transaction Modal -->
+<div id="addTransactionModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 99999;">
+    <div style="background: white; margin: 3% auto; padding: 20px; width: 90%; max-width: 600px; border-radius: 10px; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+            <h3 style="margin: 0;">Add New Transaction</h3>
+            <button onclick="closeAddTransactionModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #aaa;">&times;</button>
+        </div>
+        
+        <div id="addTransactionFormContent">
+            <!-- Form content will be loaded here -->
+            <p style="text-align: center; color: #666;">Loading form...</p>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: right; border-top: 1px solid #eee; padding-top: 15px;">
+            <button type="button" onclick="closeAddTransactionModal()" style="background: #fff; color: #333; border: 1px solid #ddd; padding: 8px 16px; margin-right: 10px; border-radius: 4px; cursor: pointer;">Cancel</button>
+            <button type="button" id="saveTransactionBtn" onclick="saveTransaction()" style="background: #000; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Save Transaction</button>
+        </div>
+    </div>
+</div>
+
+<!-- View Transaction Modal -->
+<div id="viewTransactionModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 99999;">
+    <div style="background: white; margin: 5% auto; padding: 20px; width: 90%; max-width: 500px; border-radius: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+            <h3 style="margin: 0;">Transaction Details</h3>
+            <button onclick="closeViewTransactionModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #aaa;">&times;</button>
+        </div>
+        
+        <div id="viewTransactionContent">
+            <!-- Transaction details will be loaded here -->
+        </div>
+        
+        <div style="margin-top: 20px; text-align: right; border-top: 1px solid #eee; padding-top: 15px;">
+            <button type="button" onclick="closeViewTransactionModal()" style="background: #000; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Helper function to get CSRF token
+function getCsrfToken() {
+    const csrfTokenMeta = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrfTokenMeta) {
+        return csrfTokenMeta.value;
+    }
+    
+    const name = 'csrftoken';
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Add Transaction Modal Functions
+function openAddTransactionModal() {
+    const modal = document.getElementById('addTransactionModal');
+    const content = document.getElementById('addTransactionFormContent');
+    
+    modal.style.display = 'block';
+    content.innerHTML = '<p style="text-align: center; color: #666;">Loading form...</p>';
+    
+    fetch('/transactions/add/', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCsrfToken()
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            content.innerHTML = data.form_html;
+            
+            // Initialize the form after loading
+            initializeTransactionForm();
+        } else {
+            content.innerHTML = '<p style="color: red;">Error loading form</p>';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        content.innerHTML = '<p style="color: red;">Error loading form</p>';
+    });
+}
+
+function closeAddTransactionModal() {
+    document.getElementById('addTransactionModal').style.display = 'none';
+}
+
+// Initialize the transaction form after it's loaded via AJAX
+function initializeTransactionForm() {
+    // Get the form data from the JSON script tag
+    const formDataScript = document.getElementById('form-data');
+    if (!formDataScript) {
+        console.error('Form data script not found');
+        return;
+    }
+    
+    const formData = JSON.parse(formDataScript.textContent);
+    const mainCategoriesByType = formData.main_categories_by_type;
+    const subcategoriesByParent = formData.subcategories_by_parent;
+    window.accountsData = formData.accounts_data; // Make it globally available
+    const teamsData = formData.teams_data;
+    const editMode = formData.edit_mode || null;
+    
+    // Populate teams dropdown
+    function populateTeamsDropdown() {
+        const teamSelect = document.getElementById('id_team');
+        if (teamSelect && teamsData) {
+            // Store the currently selected value (if any - for edit mode)
+            const currentValue = editMode ? editMode.team_id : teamSelect.value;
+            
+            // Clear existing options except the first one
+            teamSelect.innerHTML = '<option value="">Select Team</option>';
+            
+            // Add teams
+            teamsData.forEach(team => {
+                const option = document.createElement('option');
+                option.value = team.id;
+                option.textContent = team.name;
+                // Restore selected value if it was set
+                if (currentValue && team.id == currentValue) {
+                    option.selected = true;
+                }
+                teamSelect.appendChild(option);
+            });
+        }
+    }
+    
+    // Add currency data to account select options
+    function addCurrencyDataToSelects() {
+        const accountSelect = document.getElementById('id_account');
+        const counterPartySelect = document.getElementById('id_counter_party_account');
+        
+        if (accountSelect && counterPartySelect && accountsData) {
+            // Add data-currency attributes to account options
+            accountsData.forEach(account => {
+                const accountOption = accountSelect.querySelector(`option[value="${account.id}"]`);
+                if (accountOption) {
+                    accountOption.setAttribute('data-currency', account.currency);
+                }
+                
+                const counterPartyOption = counterPartySelect.querySelector(`option[value="${account.id}"]`);
+                if (counterPartyOption) {
+                    counterPartyOption.setAttribute('data-currency', account.currency);
+                }
+            });
+        }
+    }
+    
+    // Handle transaction type change
+    function handleTransactionTypeChange() {
+        const transactionTypeSelect = document.getElementById('id_transaction_type');
+        const categorySelect = document.getElementById('id_category');
+        const subcategoryField = document.getElementById('subcategory-field');
+        const subcategorySelect = document.getElementById('id_subcategory');
+        const teamField = document.getElementById('team-field');
+        const counterPartyField = document.getElementById('counter-party-field');
+        const categoryField = document.getElementById('category-field');
+        
+        if (!transactionTypeSelect || !categorySelect) return;
+        
+        const transactionType = transactionTypeSelect.value;
+        
+        // Store current category and subcategory values (for edit mode)
+        const currentCategoryValue = editMode ? editMode.category_id : categorySelect.value;
+        const currentSubcategoryValue = editMode ? editMode.subcategory_id : (subcategorySelect ? subcategorySelect.value : null);
+        
+        // Clear categories and subcategories
+        categorySelect.innerHTML = '<option value="">Select Category</option>';
+        if (subcategorySelect) {
+            subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+        }
+        
+        // Populate main categories based on transaction type
+        if (mainCategoriesByType && mainCategoriesByType[transactionType]) {
+            mainCategoriesByType[transactionType].forEach(category => {
+                const option = document.createElement('option');
+                option.value = category.id;
+                option.textContent = category.name;
+                // Restore selected value if it matches
+                if (currentCategoryValue && category.id == currentCategoryValue) {
+                    option.selected = true;
+                    // If this category was selected and it's expense type, populate subcategories
+                    if (transactionType === 'expense' && subcategoriesByParent[category.id]) {
+                        subcategoriesByParent[category.id].forEach(subcategory => {
+                            const subOption = document.createElement('option');
+                            subOption.value = subcategory.id;
+                            subOption.textContent = subcategory.name;
+                            // Restore selected subcategory
+                            if (currentSubcategoryValue && subcategory.id == currentSubcategoryValue) {
+                                subOption.selected = true;
+                            }
+                            subcategorySelect.appendChild(subOption);
+                        });
+                    }
+                }
+                categorySelect.appendChild(option);
+            });
+        }
+        
+        // Show/hide fields based on transaction type
+        if (transactionType === 'income') {
+            // Income: show team, category; hide subcategory, counter_party
+            if (teamField) teamField.style.display = 'block';
+            if (categoryField) categoryField.style.display = 'block';
+            if (subcategoryField) subcategoryField.style.display = 'none';
+            if (counterPartyField) counterPartyField.style.display = 'none';
+            
+        } else if (transactionType === 'expense') {
+            // Expense: show team, category, subcategory; hide counter_party
+            if (teamField) teamField.style.display = 'block';
+            if (categoryField) categoryField.style.display = 'block';
+            if (subcategoryField) subcategoryField.style.display = 'block';
+            if (counterPartyField) counterPartyField.style.display = 'none';
+            
+        } else if (transactionType === 'owners_equity') {
+            // Owners Equity: show category; hide team, subcategory, counter_party
+            if (teamField) teamField.style.display = 'none';
+            if (categoryField) categoryField.style.display = 'block';
+            if (subcategoryField) subcategoryField.style.display = 'none';
+            if (counterPartyField) counterPartyField.style.display = 'none';
+            
+        } else if (transactionType === 'transfer') {
+            // Transfer: show counter_party; hide team, category, subcategory
+            if (teamField) teamField.style.display = 'none';
+            if (categoryField) categoryField.style.display = 'none';
+            if (subcategoryField) subcategoryField.style.display = 'none';
+            if (counterPartyField) counterPartyField.style.display = 'block';
+        } else {
+            // Default: show team and category, hide others
+            if (teamField) teamField.style.display = 'block';
+            if (categoryField) categoryField.style.display = 'block';
+            if (subcategoryField) subcategoryField.style.display = 'none';
+            if (counterPartyField) counterPartyField.style.display = 'none';
+        }
+        
+        // Check for exchange rate requirements
+        checkExchangeRateRequirement();
+    }
+    
+    // Handle category change (for expense transactions)
+    function handleCategoryChange() {
+        const transactionTypeSelect = document.getElementById('id_transaction_type');
+        const categorySelect = document.getElementById('id_category');
+        const subcategorySelect = document.getElementById('id_subcategory');
+        
+        if (!transactionTypeSelect || !categorySelect || !subcategorySelect) return;
+        
+        const transactionType = transactionTypeSelect.value;
+        const selectedCategoryId = categorySelect.value;
+        
+        if (transactionType === 'expense' && selectedCategoryId) {
+            // Clear and populate subcategories for the selected category
+            subcategorySelect.innerHTML = '<option value="">Select Subcategory</option>';
+            
+            if (subcategoriesByParent && subcategoriesByParent[selectedCategoryId]) {
+                subcategoriesByParent[selectedCategoryId].forEach(subcategory => {
+                    const option = document.createElement('option');
+                    option.value = subcategory.id;
+                    option.textContent = subcategory.name;
+                    subcategorySelect.appendChild(option);
+                });
+            }
+        }
+    }
+    
+    // Check if exchange rate field should be shown
+    function checkExchangeRateRequirement() {
+        const accountSelect = document.getElementById('id_account');
+        const counterPartySelect = document.getElementById('id_counter_party_account');
+        const transactionTypeSelect = document.getElementById('id_transaction_type');
+        const exchangeRateField = document.getElementById('exchange-rate-field');
+        const exchangeRateInput = document.getElementById('exchange_rate');
+        
+        if (!accountSelect || !transactionTypeSelect) return;
+        
+        const selectedAccount = accountSelect.value;
+        const selectedCounterParty = counterPartySelect ? counterPartySelect.value : null;
+        const transactionType = transactionTypeSelect.value;
+        
+        let showExchangeRate = false;
+        let currencyInvolved = 'PKR';
+        let rateLabel = 'Exchange Rate to PKR:';
+        let rateHelp = 'Enter the rate: 1 [Currency] = X PKR';
+        let defaultExchangeRate = 1.0000;
+        
+        if (transactionType === 'transfer' && selectedAccount && selectedCounterParty && counterPartySelect) {
+            // Get currency information for both accounts
+            const accountOption = accountSelect.querySelector(`option[value="${selectedAccount}"]`);
+            const counterPartyOption = counterPartySelect.querySelector(`option[value="${selectedCounterParty}"]`);
+            
+            const fromCurrency = accountOption ? accountOption.dataset.currency : 'PKR';
+            const toCurrency = counterPartyOption ? counterPartyOption.dataset.currency : 'PKR';
+            
+            if (fromCurrency === 'PKR' && toCurrency !== 'PKR') {
+                // PKR to foreign currency (e.g., PKR to USD)
+                showExchangeRate = true;
+                currencyInvolved = toCurrency;
+                rateLabel = `Exchange Rate (1 ${toCurrency} = ? PKR):`;
+                rateHelp = `Enter: 1 ${toCurrency} = X PKR (for receiving account)`;
+                exchangeRateInput.name = 'counter_party_exchange_rate';
+                
+                // Get default rate for the receiving currency
+                if (window.accountsData) {
+                    const accountData = window.accountsData.find(acc => acc.id == selectedCounterParty);
+                    if (accountData && accountData.exchange_rate) {
+                        defaultExchangeRate = accountData.exchange_rate;
+                    }
+                }
+                
+            } else if (fromCurrency !== 'PKR' && toCurrency === 'PKR') {
+                // Foreign currency to PKR (e.g., USD to PKR)
+                showExchangeRate = true;
+                currencyInvolved = fromCurrency;
+                rateLabel = `Exchange Rate (1 ${fromCurrency} = ? PKR):`;
+                rateHelp = `Enter: 1 ${fromCurrency} = X PKR (for sending account)`;
+                exchangeRateInput.name = 'exchange_rate_to_pkr';
+                
+                // Get default rate for the sending currency
+                if (window.accountsData) {
+                    const accountData = window.accountsData.find(acc => acc.id == selectedAccount);
+                    if (accountData && accountData.exchange_rate) {
+                        defaultExchangeRate = accountData.exchange_rate;
+                    }
+                }
+                
+            } else if (fromCurrency !== 'PKR' && toCurrency !== 'PKR' && fromCurrency === toCurrency) {
+                // Same foreign currency (e.g., USD to USD) - use current rate
+                showExchangeRate = true;
+                currencyInvolved = fromCurrency;
+                rateLabel = `Exchange Rate (1 ${fromCurrency} = ? PKR) - Optional:`;
+                rateHelp = `Current rate will be used if left empty`;
+                exchangeRateInput.name = 'exchange_rate_to_pkr';
+                
+                // Get default rate
+                if (window.accountsData) {
+                    const accountData = window.accountsData.find(acc => acc.id == selectedAccount);
+                    if (accountData && accountData.exchange_rate) {
+                        defaultExchangeRate = accountData.exchange_rate;
+                    }
+                }
+                
+            } else if (fromCurrency === 'PKR' && toCurrency === 'PKR') {
+                // PKR to PKR - no rate needed
+                showExchangeRate = false;
+            }
+        } else if (transactionType !== 'transfer' && selectedAccount) {
+            // Income/Expense transaction
+            const accountOption = accountSelect.querySelector(`option[value="${selectedAccount}"]`);
+            if (accountOption && accountOption.dataset.currency && accountOption.dataset.currency !== 'PKR') {
+                showExchangeRate = true;
+                currencyInvolved = accountOption.dataset.currency;
+                rateLabel = `Exchange Rate (1 ${currencyInvolved} = ? PKR):`;
+                rateHelp = `Enter: 1 ${currencyInvolved} = X PKR`;
+                exchangeRateInput.name = 'exchange_rate_to_pkr';
+                
+                // Get default rate
+                if (window.accountsData) {
+                    const accountData = window.accountsData.find(acc => acc.id == selectedAccount);
+                    if (accountData && accountData.exchange_rate) {
+                        defaultExchangeRate = accountData.exchange_rate;
+                    }
+                }
+            }
+        }
+        
+        // Show/hide exchange rate field
+        if (exchangeRateField && exchangeRateInput) {
+            if (showExchangeRate) {
+                exchangeRateField.style.display = 'block';
+                const label = exchangeRateField.querySelector('label');
+                const small = exchangeRateField.querySelector('small');
+                
+                if (label) label.textContent = rateLabel;
+                if (small) small.textContent = rateHelp;
+                
+                exchangeRateInput.placeholder = `e.g., ${defaultExchangeRate}`;
+                
+                // Set the default exchange rate but don't overwrite if user has already entered a value
+                if (!exchangeRateInput.value || exchangeRateInput.value === '1.0000') {
+                    exchangeRateInput.value = defaultExchangeRate.toFixed(4);
+                }
+            } else {
+                exchangeRateField.style.display = 'none';
+                exchangeRateInput.value = '1.0000';
+                exchangeRateInput.name = 'exchange_rate_to_pkr';
+            }
+        }
+    }
+    
+    // Add event listeners
+    const transactionTypeSelect = document.getElementById('id_transaction_type');
+    const categorySelect = document.getElementById('id_category');
+    const accountSelect = document.getElementById('id_account');
+    const counterPartySelect = document.getElementById('id_counter_party_account');
+    
+    if (transactionTypeSelect) {
+        transactionTypeSelect.addEventListener('change', handleTransactionTypeChange);
+    }
+    if (categorySelect) {
+        categorySelect.addEventListener('change', handleCategoryChange);
+    }
+    if (accountSelect) {
+        accountSelect.addEventListener('change', checkExchangeRateRequirement);
+    }
+    if (counterPartySelect) {
+        counterPartySelect.addEventListener('change', checkExchangeRateRequirement);
+    }
+    
+    // Initialize the form
+    populateTeamsDropdown();
+    addCurrencyDataToSelects();
+    handleTransactionTypeChange();
+    
+    // Set today's date as default
+    const dateInput = document.getElementById('id_transaction_date');
+    if (dateInput && !dateInput.value) {
+        const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+        dateInput.value = today;
+    }
+}
+
+function saveTransaction() {
+    // Try to find the form first
+    let form = document.querySelector('#addTransactionFormContent form');
+    
+    if (!form) {
+        // If no form tag found, collect form data manually from form elements
+        const formContent = document.getElementById('addTransactionFormContent');
+        if (!formContent) {
+            alert('Form content not found. Please try reopening the modal.');
+            return;
+        }
+        
+        // Create FormData manually from all input elements
+        const formData = new FormData();
+        
+        // Add CSRF token first
+        const csrfToken = getCsrfToken();
+        if (csrfToken) {
+            formData.append('csrfmiddlewaretoken', csrfToken);
+        }
+        
+        // Get all form inputs, selects, and textareas
+        const inputs = formContent.querySelectorAll('input, select, textarea');
+        let hasRequiredFields = false;
+        
+        inputs.forEach(input => {
+            if (input.name && input.type !== 'hidden') {
+                formData.append(input.name, input.value);
+                if (input.value) {
+                    hasRequiredFields = true;
+                }
+            } else if (input.type === 'hidden' && input.name) {
+                formData.append(input.name, input.value);
+            }
+        });
+        
+        // Basic validation - check if we have some data
+        const transactionType = formContent.querySelector('[name="transaction_type"]')?.value;
+        const amount = formContent.querySelector('[name="amount"]')?.value;
+        const description = formContent.querySelector('[name="description"]')?.value;
+        const team = formContent.querySelector('[name="team"]')?.value;
+        const account = formContent.querySelector('[name="account"]')?.value;
+        const transactionDate = formContent.querySelector('[name="transaction_date"]')?.value;
+        const category = formContent.querySelector('[name="category"]')?.value;
+        const counterPartyAccount = formContent.querySelector('[name="counter_party_account"]')?.value;
+        
+        if (!transactionType || !amount || !description) {
+            alert('Please fill in all required fields (Transaction Type, Amount, Description).');
+            return;
+        }
+        
+        if (transactionType === 'transfer') {
+            if (!counterPartyAccount) {
+                alert('Please select a counter party account for transfer transactions.');
+                return;
+            }
+            if (account === counterPartyAccount) {
+                alert('Source and destination accounts cannot be the same.');
+                return;
+            }
+        } else if ((transactionType === 'income' || transactionType === 'expense')) {
+            if (!team) {
+                alert('Please select a team for income/expense transactions.');
+                return;
+            }
+            if (!category) {
+                alert('Please select a category for income/expense transactions.');
+                return;
+            }
+        }
+        
+        if (!account) {
+            alert('Please select an account.');
+            return;
+        }
+        
+        if (!transactionDate) {
+            alert('Please select a transaction date.');
+            return;
+        }
+        
+        // Send the manually collected data
+        fetch('/transactions/add/', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            if (data.success) {
+                alert(data.message || 'Transaction added successfully!');
+                closeAddTransactionModal();
+                location.reload();
+            } else {
+                if (data.errors) {
+                    let errorMessage = 'Please fix the following errors:\n';
+                    Object.entries(data.errors).forEach(([field, errors]) => {
+                        errorMessage += `${field}: ${errors.join(', ')}\n`;
+                    });
+                    alert(errorMessage);
+                } else if (data.message) {
+                    alert(data.message);
+                } else {
+                    alert('Failed to save transaction');
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to save transaction. Please try again. Error: ' + error.message);
+        });
+        
+        return;
+    }
+    
+    // If form tag is found, use normal FormData
+    const formData = new FormData(form);
+    
+    fetch('/transactions/add/', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: formData,
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            alert(data.message || 'Transaction added successfully!');
+            closeAddTransactionModal();
+            location.reload();
+        } else {
+            if (data.errors) {
+                let errorMessage = 'Please fix the following errors:\n';
+                Object.entries(data.errors).forEach(([field, errors]) => {
+                    errorMessage += `${field}: ${errors.join(', ')}\n`;
+                });
+                alert(errorMessage);
+            } else if (data.message) {
+                alert(data.message);
+            } else {
+                alert('Failed to save transaction');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to save transaction. Please try again. Error: ' + error.message);
+    });
+}
+
+// View Transaction Modal Functions
+function viewTransaction(transactionId) {
+    fetch('/transactions/' + transactionId + '/', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCsrfToken()
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const transaction = data.transaction;
+            const showExchangeRate = transaction.exchange_rate_to_pkr && transaction.exchange_rate_to_pkr !== '1.0000' && transaction.currency !== 'PKR';
+            document.getElementById('viewTransactionContent').innerHTML = `
+                <div style="line-height: 1.6;">
+                    <p><strong>Type:</strong> ${transaction.transaction_type}</p>
+                    <p><strong>Description:</strong> ${transaction.description}</p>
+                    <p><strong>Amount:</strong> ${transaction.currency}${transaction.amount} 
+                       ${transaction.currency !== 'PKR' ? `(≈ PKR ${transaction.amount_pkr})` : ''}</p>
+                    ${showExchangeRate ? `<p><strong>Exchange Rate Used:</strong> 1 ${transaction.currency} = ${parseFloat(transaction.exchange_rate_to_pkr).toFixed(4)} PKR</p>` : ''}
+                    <p><strong>Date:</strong> ${transaction.transaction_date}</p>
+                    <p><strong>Account:</strong> ${transaction.account}</p>
+                    ${transaction.counter_party_account ? `<p><strong>Counter Party Account:</strong> ${transaction.counter_party_account}</p>` : ''}
+                    ${transaction.category ? `<p><strong>Category:</strong> ${transaction.category}</p>` : ''}
+                    ${transaction.team ? `<p><strong>Team:</strong> ${transaction.team}</p>` : ''}
+                    ${transaction.notes ? `<p><strong>Notes:</strong> ${transaction.notes}</p>` : ''}
+                    <p><strong>Created by:</strong> ${transaction.created_by}</p>
+                    <p><strong>Created at:</strong> ${transaction.created_at}</p>
+                </div>
+            `;
+            document.getElementById('viewTransactionModal').style.display = 'block';
+        } else {
+            alert(data.error || 'Failed to load transaction details');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to load transaction details');
+    });
+}
+
+function closeViewTransactionModal() {
+    document.getElementById('viewTransactionModal').style.display = 'none';
+}
+
+// Placeholder functions for edit/delete (to be implemented later)
+function editTransaction(id) {
+    // Create edit modal if it doesn't exist
+    if (!document.getElementById('editTransactionModal')) {
+        createEditTransactionModal();
+    }
+    
+    const modal = document.getElementById('editTransactionModal');
+    const content = document.getElementById('editTransactionFormContent');
+    
+    modal.style.display = 'block';
+    content.innerHTML = '<p style="text-align: center; color: #666;">Loading form...</p>';
+    
+    // Store transaction ID for later use
+    window.currentEditTransactionId = id;
+    
+    fetch('/transactions/' + id + '/edit/', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCsrfToken()
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            content.innerHTML = data.form_html;
+            
+            // Initialize the form after loading
+            initializeTransactionForm();
+        } else {
+            content.innerHTML = '<p style="color: red;">Error loading form</p>';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        content.innerHTML = '<p style="color: red;">Error loading form</p>';
+    });
+}
+
+function createEditTransactionModal() {
+    const modalHtml = `
+        <!-- Edit Transaction Modal -->
+        <div id="editTransactionModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 99999;">
+            <div style="background: white; margin: 3% auto; padding: 20px; width: 90%; max-width: 600px; border-radius: 10px; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                    <h3 style="margin: 0;">Edit Transaction</h3>
+                    <button onclick="closeEditTransactionModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #aaa;">&times;</button>
+                </div>
+                
+                <div id="editTransactionFormContent">
+                    <!-- Form content will be loaded here -->
+                    <p style="text-align: center; color: #666;">Loading form...</p>
+                </div>
+                
+                <div style="margin-top: 20px; text-align: right; border-top: 1px solid #eee; padding-top: 15px;">
+                    <button type="button" onclick="closeEditTransactionModal()" style="background: #fff; color: #333; border: 1px solid #ddd; padding: 8px 16px; margin-right: 10px; border-radius: 4px; cursor: pointer;">Cancel</button>
+                    <button type="button" id="saveEditTransactionBtn" onclick="saveEditTransaction()" style="background: #000; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Update Transaction</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function saveEditTransaction() {
+    const formContent = document.getElementById('editTransactionFormContent');
+    if (!formContent) {
+        alert('Form content not found. Please try reopening the modal.');
+        return;
+    }
+    
+    // Create FormData manually from all input elements
+    const formData = new FormData();
+    
+    // Get all form inputs, selects, and textareas
+    const inputs = formContent.querySelectorAll('input, select, textarea');
+    
+    inputs.forEach(input => {
+        if (input.type === 'hidden' || input.name) {
+            formData.append(input.name, input.value);
+        }
+    });
+    
+    // Get transaction ID
+    const transactionId = window.currentEditTransactionId;
+    
+    if (!transactionId) {
+        alert('Transaction ID not found. Please try again.');
+        return;
+    }
+    
+    fetch('/transactions/' + transactionId + '/edit/', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: formData,
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccessPopup(data.message || 'Transaction updated successfully!');
+            closeEditTransactionModal();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            if (data.errors) {
+                let errorMessage = 'Please fix the following errors:\n';
+                Object.entries(data.errors).forEach(([field, errors]) => {
+                    errorMessage += `${field}: ${errors.join(', ')}\n`;
+                });
+                showErrorPopup(errorMessage);
+            } else {
+                showErrorPopup('Failed to update transaction');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showErrorPopup('Failed to update transaction. Please try again.');
+    });
+}
+
+function closeEditTransactionModal() {
+    const modal = document.getElementById('editTransactionModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Popup functions
+function showSuccessPopup(message) {
+    const popup = document.createElement('div');
+    popup.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #d4edda;
+        color: #155724;
+        padding: 15px 20px;
+        border-radius: 5px;
+        border: 1px solid #c3e6cb;
+        z-index: 10000;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        font-family: Arial, sans-serif;
+        max-width: 300px;
+    `;
+    popup.textContent = message;
+    document.body.appendChild(popup);
+    
+    setTimeout(() => {
+        popup.remove();
+    }, 3000);
+}
+
+function showErrorPopup(message) {
+    const popup = document.createElement('div');
+    popup.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #f8d7da;
+        color: #721c24;
+        padding: 15px 20px;
+        border-radius: 5px;
+        border: 1px solid #f5c6cb;
+        z-index: 10000;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        font-family: Arial, sans-serif;
+        max-width: 300px;
+    `;
+    popup.textContent = message;
+    document.body.appendChild(popup);
+    
+    setTimeout(() => {
+        popup.remove();
+    }, 5000);
+}
+
+function deleteTransaction(id) {
+    // Show confirmation dialog
+    if (confirm('Are you sure you want to delete this transaction? This action cannot be undone and will automatically adjust account balances.')) {
+        // Get CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        // Make DELETE request
+        fetch(`/transactions/${id}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                return response.json().then(err => Promise.reject(err));
+            }
+        })
+        .then(data => {
+            if (data.success) {
+                showSuccessPopup(data.message || 'Transaction deleted successfully! Account balances have been updated.');
+                // Remove the transaction row from the table
+                const transactionRow = document.querySelector(`tr[data-transaction-id="${id}"]`);
+                if (transactionRow) {
+                    transactionRow.remove();
+                } else {
+                    // If we can't find the specific row, reload the page
+                    setTimeout(() => location.reload(), 1000);
+                }
+            } else {
+                showErrorPopup(data.message || 'Failed to delete transaction');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            let errorMessage = 'Failed to delete transaction. Please try again.';
+            if (error.message) {
+                errorMessage = error.message;
+            }
+            showErrorPopup(errorMessage);
+        });
+    }
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const addModal = document.getElementById('addTransactionModal');
+    const viewModal = document.getElementById('viewTransactionModal');
+    const editModal = document.getElementById('editTransactionModal');
+    
+    if (event.target === addModal) {
+        addModal.style.display = 'none';
+    }
+    if (event.target === viewModal) {
+        viewModal.style.display = 'none';
+    }
+    if (event.target === editModal) {
+        editModal.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

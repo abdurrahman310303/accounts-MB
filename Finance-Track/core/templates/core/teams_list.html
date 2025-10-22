@@ -1,0 +1,483 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Teams - Finance Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Teams Management</h2>
+                <button type="button" class="btn btn-outline-dark" onclick="openModal('addTeamModal')">
+                    + Add Team
+                </button>
+            </div>
+
+            {% if teams %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Team Name</th>
+                                    <th>Description</th>
+                                    <th>Created Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for team in teams %}
+                                <tr>
+                                    <td><strong>{{ team.name }}</strong></td>
+                                    <td>{{ team.description|default:"No description" }}</td>
+                                    <td>{{ team.created_at|date:"M d, Y" }}</td>
+                                    <td>
+                                        <button class="btn btn-outline-info btn-sm" onclick="viewTeam({{ team.id }})">View</button>
+                                        <button class="btn btn-outline-primary btn-sm" onclick="editTeam({{ team.id }})">Edit</button>
+                                        <button class="btn btn-outline-danger btn-sm" onclick="deleteTeam({{ team.id }}, '{{ team.name|escapejs }}')">Delete</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>No Teams Found</h5>
+                    <p>Create your first team to organize your finances.</p>
+                    <button type="button" class="btn btn-outline-dark" onclick="openModal('addTeamModal')">
+                        + Add Your First Team
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Team Modal -->
+<div id="addTeamModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add New Team</h3>
+            <span class="close" onclick="closeModal('addTeamModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="addTeamForm">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="add_name">Team Name:</label>
+                    <input type="text" id="add_name" name="name" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="add_description">Description:</label>
+                    <textarea id="add_description" name="description" class="form-control" rows="3" placeholder="Optional: Describe the team's purpose"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('addTeamModal')">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="submitTeamForm('add')">Add Team</button>
+        </div>
+    </div>
+</div>
+
+<!-- View Team Modal -->
+<div id="viewTeamModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Team Details</h3>
+            <span class="close" onclick="closeModal('viewTeamModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div id="viewTeamContent">
+                <!-- Team details will be loaded here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('viewTeamModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Team Modal -->
+<div id="editTeamModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Team</h3>
+            <span class="close" onclick="closeModal('editTeamModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="editTeamForm">
+                {% csrf_token %}
+                <input type="hidden" id="edit_team_id">
+                
+                <div class="form-group">
+                    <label for="edit_name">Team Name:</label>
+                    <input type="text" id="edit_name" name="name" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="edit_description">Description:</label>
+                    <textarea id="edit_description" name="description" class="form-control" rows="3" placeholder="Optional: Describe the team's purpose"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('editTeamModal')">Cancel</button>
+            <button type="button" class="btn btn-primary" onclick="submitTeamForm('edit')">Update Team</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Team Modal -->
+<div id="deleteTeamModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Delete Team</h3>
+            <span class="close" onclick="closeModal('deleteTeamModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="warning-message">
+                <p><strong>Are you sure you want to delete this team?</strong></p>
+                <p><strong id="deleteTeamName"></strong></p>
+                <p>This action cannot be undone and will affect all associated transactions.</p>
+            </div>
+            <input type="hidden" id="delete_team_id">
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('deleteTeamModal')">Cancel</button>
+            <button type="button" class="btn btn-danger" onclick="confirmDeleteTeam()">Yes, Delete Team</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Styles -->
+<style>
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: #ffffff;
+    margin: 5% auto;
+    border: 2px solid #000000;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1rem;
+    background-color: #000000;
+    color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.close {
+    color: #ffffff;
+    font-size: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close:hover {
+    opacity: 0.7;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-footer {
+    padding: 1rem 1.5rem;
+    background-color: #f8f9fa;
+    border-top: 1px solid #ddd;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #000000;
+}
+
+.warning-message {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.warning-message p {
+    margin: 0.5rem 0;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.btn-outline-info {
+    color: #17a2b8;
+    border-color: #17a2b8;
+}
+
+.btn-outline-info:hover {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.btn-outline-primary {
+    color: #007bff;
+    border-color: #007bff;
+}
+
+.btn-outline-primary:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+.btn-outline-danger {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
+.btn-outline-danger:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+.team-details {
+    font-size: 0.95rem;
+}
+
+.detail-row {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-row strong {
+    color: #000000;
+    min-width: 140px;
+    text-align: left;
+}
+</style>
+
+<!-- JavaScript for Modal Operations -->
+<script>
+// Modal Functions
+function openModal(modalId) {
+    document.getElementById(modalId).style.display = 'block';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+    
+    // Clear forms when closing
+    if (modalId === 'addTeamModal') {
+        document.getElementById('addTeamForm').reset();
+    } else if (modalId === 'editTeamModal') {
+        document.getElementById('editTeamForm').reset();
+    }
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+
+// Team Operations
+function viewTeam(teamId) {
+    fetch(`/teams/${teamId}/`, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            // Create clean team details HTML
+            const teamDetailsHtml = `
+                <div class="team-details">
+                    <div class="detail-row">
+                        <strong>Team Name:</strong> ${data.name}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Description:</strong> ${data.description}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Created:</strong> ${data.created_at}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('viewTeamContent').innerHTML = teamDetailsHtml;
+            openModal('viewTeamModal');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showErrorPopup('Failed to load team details');
+        });
+}
+
+function editTeam(teamId) {
+    fetch(`/teams/${teamId}/edit/`, {
+        headers: {
+            'Accept': 'application/json',
+        }
+    })
+        .then(response => response.json())
+        .then(data => {
+            // Populate edit form
+            document.getElementById('edit_team_id').value = data.id;
+            document.getElementById('edit_name').value = data.name;
+            document.getElementById('edit_description').value = data.description || '';
+            
+            openModal('editTeamModal');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showErrorPopup('Failed to load team data');
+        });
+}
+
+function deleteTeam(teamId, teamName) {
+    document.getElementById('delete_team_id').value = teamId;
+    document.getElementById('deleteTeamName').textContent = teamName;
+    openModal('deleteTeamModal');
+}
+
+function submitTeamForm(action) {
+    const form = document.getElementById(action + 'TeamForm');
+    const formData = new FormData(form);
+    
+    let url, method;
+    if (action === 'add') {
+        url = '/teams/add/';
+        method = 'POST';
+    } else if (action === 'edit') {
+        const teamId = document.getElementById('edit_team_id').value;
+        url = `/teams/${teamId}/edit/`;
+        method = 'POST';
+    }
+    
+    // Add CSRF token
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch(url, {
+        method: method,
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        } else {
+            return response.json().then(err => Promise.reject(err));
+        }
+    })
+    .then(data => {
+        showSuccessPopup(data.message || 'Team ' + (action === 'add' ? 'added' : 'updated') + ' successfully!');
+        closeModal(action + 'TeamModal');
+        location.reload(); // Refresh the page to show changes
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        let errorMessage = 'Failed to ' + action + ' team. Please try again.';
+        if (error.errors) {
+            // Display form validation errors
+            const errorMessages = Object.values(error.errors).flat();
+            errorMessage = errorMessages.join(' ');
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        showErrorPopup(errorMessage);
+    });
+}
+
+function confirmDeleteTeam() {
+    const teamId = document.getElementById('delete_team_id').value;
+    
+    fetch(`/teams/${teamId}/delete/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        } else {
+            return response.json().then(err => Promise.reject(err));
+        }
+    })
+    .then(data => {
+        showSuccessPopup(data.message || 'Team deleted successfully!');
+        closeModal('deleteTeamModal');
+        location.reload(); // Refresh the page to show changes
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        let errorMessage = 'Failed to delete team. Please try again.';
+        if (error.message) {
+            errorMessage = error.message;
+        }
+        showErrorPopup(errorMessage);
+    });
+}
+</script>
+{% endblock %}

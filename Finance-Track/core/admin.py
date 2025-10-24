@@ -53,10 +53,14 @@ class TransactionAdmin(admin.ModelAdmin):
         
         # Show/hide fields based on transaction type
         if obj and obj.transaction_type == 'transfer':
-            form.base_fields['account'].widget.attrs['style'] = 'display:none;'
-            form.base_fields['category'].widget.attrs['style'] = 'display:none;'
+            # For transfers, hide category and team (show account and counter_party_account)
+            if 'category' in form.base_fields:
+                form.base_fields['category'].widget.attrs['style'] = 'display:none;'
+            if 'team' in form.base_fields:
+                form.base_fields['team'].widget.attrs['style'] = 'display:none;'
         else:
-            form.base_fields['from_account'].widget.attrs['style'] = 'display:none;'
-            form.base_fields['to_account'].widget.attrs['style'] = 'display:none;'
+            # For income/expense/owners_equity, hide counter_party_account
+            if 'counter_party_account' in form.base_fields:
+                form.base_fields['counter_party_account'].widget.attrs['style'] = 'display:none;'
         
         return form

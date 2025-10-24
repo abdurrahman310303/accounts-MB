@@ -214,17 +214,6 @@ def add_transaction(request):
             try:
                 transaction = form.save(commit=False)
                 transaction.created_by = request.user
-                
-                # Ensure amount_pkr is set if not already - use Decimal for calculations
-                if not transaction.amount_pkr:
-                    from decimal import Decimal
-                    if transaction.currency and transaction.exchange_rate_to_pkr:
-                        amount_decimal = Decimal(str(transaction.amount))
-                        rate_decimal = Decimal(str(transaction.exchange_rate_to_pkr))
-                        transaction.amount_pkr = amount_decimal * rate_decimal
-                    else:
-                        transaction.amount_pkr = Decimal(str(transaction.amount))  # Default to PKR
-                
                 transaction.save()
                 messages.success(request, 'Transaction added successfully!')
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':

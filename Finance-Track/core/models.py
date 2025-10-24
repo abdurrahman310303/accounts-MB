@@ -120,14 +120,14 @@ class Account(models.Model):
 
     def save(self, *args, **kwargs):
         # Convert opening balance to PKR
-        self.opening_balance_pkr = self.opening_balance * self.currency.exchange_rate_to_pkr
+        self.opening_balance_pkr = self.opening_balance * Decimal(str(self.currency.exchange_rate_to_pkr))
         
         # If this is a new account, set current balance to opening balance
         if self.pk is None:
             self.current_balance = self.opening_balance
         
         # Convert current balance to PKR
-        self.current_balance_pkr = self.current_balance * self.currency.exchange_rate_to_pkr
+        self.current_balance_pkr = self.current_balance * Decimal(str(self.currency.exchange_rate_to_pkr))
         
         super().save(*args, **kwargs)
 
@@ -159,7 +159,7 @@ class Account(models.Model):
         self.current_balance = self.opening_balance + income_total - expense_total + transfer_in - transfer_out
         
         # Update PKR balances with current exchange rate
-        current_rate = self.currency.exchange_rate_to_pkr
+        current_rate = Decimal(str(self.currency.exchange_rate_to_pkr))
         self.current_balance_pkr = self.current_balance * current_rate
         self.opening_balance_pkr = self.opening_balance * current_rate
         
@@ -299,14 +299,14 @@ class Transaction(models.Model):
         
         # Convert amount to PKR using stored exchange rate
         if self.currency and self.exchange_rate_to_pkr:
-            self.amount_pkr = Decimal(str(self.amount)) * self.exchange_rate_to_pkr
+            self.amount_pkr = Decimal(str(self.amount)) * Decimal(str(self.exchange_rate_to_pkr))
         
         # Calculate counter party amount for transfers
         if self.transaction_type == 'transfer' and self.counter_party_account:
             if self.currency != self.counter_party_currency:
                 # Convert via PKR using stored exchange rates
-                amount_pkr = self.amount * self.exchange_rate_to_pkr
-                self.counter_party_amount = amount_pkr / self.counter_party_exchange_rate
+                amount_pkr = Decimal(str(self.amount)) * Decimal(str(self.exchange_rate_to_pkr))
+                self.counter_party_amount = amount_pkr / Decimal(str(self.counter_party_exchange_rate))
             else:
                 # Same currency, same amount
                 self.counter_party_amount = self.amount
@@ -316,26 +316,26 @@ class Transaction(models.Model):
         if is_new_transaction:
             if self.transaction_type == 'income':
                 self.account.current_balance += self.amount
-                self.account.current_balance_pkr = self.account.current_balance * self.account.currency.exchange_rate_to_pkr
+                self.account.current_balance_pkr = self.account.current_balance * Decimal(str(self.account.currency.exchange_rate_to_pkr))
                 self.account.save()
             elif self.transaction_type == 'expense':
                 self.account.current_balance -= self.amount
-                self.account.current_balance_pkr = self.account.current_balance * self.account.currency.exchange_rate_to_pkr
+                self.account.current_balance_pkr = self.account.current_balance * Decimal(str(self.account.currency.exchange_rate_to_pkr))
                 self.account.save()
             elif self.transaction_type == 'owners_equity':
                 # Owners equity deducts from account (like expense)
                 self.account.current_balance -= self.amount
-                self.account.current_balance_pkr = self.account.current_balance * self.account.currency.exchange_rate_to_pkr
+                self.account.current_balance_pkr = self.account.current_balance * Decimal(str(self.account.currency.exchange_rate_to_pkr))
                 self.account.save()
             elif self.transaction_type == 'transfer':
                 if self.account and self.counter_party_account and self.counter_party_amount:
                     # Deduct from source account
                     self.account.current_balance -= self.amount
-                    self.account.current_balance_pkr = self.account.current_balance * self.account.currency.exchange_rate_to_pkr
+                    self.account.current_balance_pkr = self.account.current_balance * Decimal(str(self.account.currency.exchange_rate_to_pkr))
                     
                     # Add to destination account
                     self.counter_party_account.current_balance += self.counter_party_amount
-                    self.counter_party_account.current_balance_pkr = self.counter_party_account.current_balance * self.counter_party_account.currency.exchange_rate_to_pkr
+                    self.counter_party_account.current_balance_pkr = self.counter_party_account.current_balance * Decimal(str(self.counter_party_account.currency.exchange_rate_to_pkr))
                     
                     self.account.save()
                     self.counter_party_account.save()
@@ -346,26 +346,26 @@ class Transaction(models.Model):
         """Apply balance changes for this transaction - used for edits"""
         if self.transaction_type == 'income':
             self.account.current_balance += self.amount
-            self.account.current_balance_pkr = self.account.current_balance * self.account.currency.exchange_rate_to_pkr
+            self.account.current_balance_pkr = self.account.current_balance * Decimal(str(self.account.currency.exchange_rate_to_pkr))
             self.account.save()
         elif self.transaction_type == 'expense':
             self.account.current_balance -= self.amount
-            self.account.current_balance_pkr = self.account.current_balance * self.account.currency.exchange_rate_to_pkr
+            self.account.current_balance_pkr = self.account.current_balance * Decimal(str(self.account.currency.exchange_rate_to_pkr))
             self.account.save()
         elif self.transaction_type == 'owners_equity':
             # Owners equity deducts from account (like expense)
             self.account.current_balance -= self.amount
-            self.account.current_balance_pkr = self.account.current_balance * self.account.currency.exchange_rate_to_pkr
+            self.account.current_balance_pkr = self.account.current_balance * Decimal(str(self.account.currency.exchange_rate_to_pkr))
             self.account.save()
         elif self.transaction_type == 'transfer':
             if self.account and self.counter_party_account and self.counter_party_amount:
                 # Deduct from source account
                 self.account.current_balance -= self.amount
-                self.account.current_balance_pkr = self.account.current_balance * self.account.currency.exchange_rate_to_pkr
+                self.account.current_balance_pkr = self.account.current_balance * Decimal(str(self.account.currency.exchange_rate_to_pkr))
                 
                 # Add to destination account
                 self.counter_party_account.current_balance += self.counter_party_amount
-                self.counter_party_account.current_balance_pkr = self.counter_party_account.current_balance * self.counter_party_account.currency.exchange_rate_to_pkr
+                self.counter_party_account.current_balance_pkr = self.counter_party_account.current_balance * Decimal(str(self.counter_party_account.currency.exchange_rate_to_pkr))
                 
                 self.account.save()
                 self.counter_party_account.save()

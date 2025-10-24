@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-$h*8+aw2=-!tke4q7jjn5p=2*7r$g4j8_0_-j!moh3mg&2+m6c
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["98.91.200.65"]
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -48,7 +48,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
+    ]
 
 ROOT_URLCONF = 'finance_tracker.urls'
 
@@ -78,8 +78,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'finance_tracker',
-        'USER': 'root',
-        'PASSWORD': '',  # Add your MySQL root password here
+        'USER': 'django_user',
+        'PASSWORD': 'StrongPassword123!',  # Add your MySQL root password here
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -92,7 +92,6 @@ DATABASES = {
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -139,3 +138,12 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+import os
+
+
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+

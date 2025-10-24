@@ -8,6 +8,8 @@
 
 <div style="margin-bottom: 1rem;">
     <button type="button" onclick="openAddTransactionModal(); return false;" class="btn btn-primary">Add New Transaction</button>
+    <button type="button" onclick="openBulkImportModal(); return false;" class="btn btn-success" style="margin-left: 10px;">📥 Bulk Import</button>
+    <button type="button" onclick="downloadTemplate(); return false;" class="btn btn-info" style="margin-left: 10px;">📄 Download Template</button>
     
     <!-- Filters -->
     <div style="margin-top: 1rem;">
@@ -348,6 +350,42 @@
         
         <div style="margin-top: 20px; text-align: right; border-top: 1px solid #eee; padding-top: 15px;">
             <button type="button" onclick="closeViewTransactionModal()" style="background: #000; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Import Modal -->
+<div id="bulkImportModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 99999;">
+    <div style="background: white; margin: 3% auto; padding: 20px; width: 90%; max-width: 700px; border-radius: 10px; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+            <h3 style="margin: 0;">📥 Bulk Import Transactions</h3>
+            <button onclick="closeBulkImportModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #aaa;">&times;</button>
+        </div>
+        
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #2196F3;">
+            <h4 style="margin-top: 0; color: #1976D2;">📋 Instructions:</h4>
+            <ol style="margin: 10px 0; padding-left: 20px;">
+                <li>Download the template file by clicking "Download Template" button</li>
+                <li>Fill in your transaction data following the template format</li>
+                <li>Required columns: Date, Type, Amount, Description, Account</li>
+                <li>Optional columns: Team, Category, Subcategory, Exchange Rate</li>
+                <li>Date format: YYYY-MM-DD (e.g., 2025-01-15)</li>
+                <li>Transaction types: income, expense, transfer, owners_equity</li>
+                <li>Upload the completed CSV or Excel file</li>
+            </ol>
+            <p style="margin: 10px 0 0 0; font-weight: bold; color: #d32f2f;">⚠️ Note: Use exact account names, team names, and category names as they appear in the system.</p>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <label for="import-file" style="display: block; margin-bottom: 10px; font-weight: bold;">Select File (CSV or Excel):</label>
+            <input type="file" id="import-file" accept=".csv,.xlsx,.xls" style="width: 100%; padding: 10px; border: 2px dashed #ddd; border-radius: 5px; cursor: pointer;">
+        </div>
+        
+        <div id="import-results" style="display: none; margin-bottom: 20px;"></div>
+        
+        <div style="text-align: right; border-top: 1px solid #eee; padding-top: 15px;">
+            <button type="button" onclick="closeBulkImportModal()" style="background: #fff; color: #333; border: 1px solid #ddd; padding: 10px 20px; margin-right: 10px; border-radius: 4px; cursor: pointer;">Cancel</button>
+            <button type="button" onclick="uploadFile()" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">📥 Upload & Import</button>
         </div>
     </div>
 </div>
@@ -1210,6 +1248,7 @@ window.onclick = function(event) {
     const addModal = document.getElementById('addTransactionModal');
     const viewModal = document.getElementById('viewTransactionModal');
     const editModal = document.getElementById('editTransactionModal');
+    const bulkImportModal = document.getElementById('bulkImportModal');
     
     if (event.target === addModal) {
         addModal.style.display = 'none';
@@ -1220,6 +1259,122 @@ window.onclick = function(event) {
     if (event.target === editModal) {
         editModal.style.display = 'none';
     }
+    if (event.target === bulkImportModal) {
+        bulkImportModal.style.display = 'none';
+    }
+}
+
+// Bulk Import Functions
+function openBulkImportModal() {
+    document.getElementById('bulkImportModal').style.display = 'block';
+    document.getElementById('import-file').value = '';
+    document.getElementById('import-results').style.display = 'none';
+}
+
+function closeBulkImportModal() {
+    document.getElementById('bulkImportModal').style.display = 'none';
+}
+
+function uploadFile() {
+    const fileInput = document.getElementById('import-file');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        alert('Please select a file to upload');
+        return;
+    }
+    
+    // Check file type
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith('.csv') && !fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+        alert('Please upload a CSV or Excel file');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('csrfmiddlewaretoken', getCsrfToken());
+    
+    // Show loading
+    document.getElementById('import-results').style.display = 'block';
+    document.getElementById('import-results').innerHTML = '<p style="text-align: center; color: #666;">Uploading and processing file...</p>';
+    
+    fetch('/transactions/bulk-import/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCsrfToken()
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let resultHtml = `
+                <div style="background: #d4edda; padding: 15px; border-radius: 5px; margin-bottom: 15px;">
+                    <h4 style="color: #155724; margin-top: 0;">✅ Import Successful!</h4>
+                    <p style="margin: 5px 0;"><strong>Total rows processed:</strong> ${data.total}</p>
+                    <p style="margin: 5px 0;"><strong>Successfully imported:</strong> ${data.success_count}</p>
+                    ${data.error_count > 0 ? `<p style="margin: 5px 0;"><strong>Errors:</strong> ${data.error_count}</p>` : ''}
+                </div>
+            `;
+            
+            if (data.errors && data.errors.length > 0) {
+                resultHtml += '<div style="background: #f8d7da; padding: 15px; border-radius: 5px;"><h5 style="color: #721c24; margin-top: 0;">Errors:</h5><ul style="margin: 0;">';
+                data.errors.forEach(error => {
+                    resultHtml += `<li style="color: #721c24;">${error}</li>`;
+                });
+                resultHtml += '</ul></div>';
+            }
+            
+            document.getElementById('import-results').innerHTML = resultHtml;
+            
+            // Reload page after 3 seconds if successful
+            if (data.success_count > 0) {
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
+            }
+        } else {
+            // Show error message with detailed error list
+            let errorHtml = `
+                <div style="background: #f8d7da; padding: 15px; border-radius: 5px;">
+                    <h4 style="color: #721c24; margin-top: 0;">❌ Import Failed</h4>
+                    <p style="color: #721c24; margin: 10px 0;"><strong>${data.message || 'Failed to import file'}</strong></p>
+            `;
+            
+            // Show detailed errors if available
+            if (data.errors && data.errors.length > 0) {
+                errorHtml += `
+                    <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 4px;">
+                        <h5 style="color: #721c24; margin-top: 0; margin-bottom: 10px;">Detailed Errors:</h5>
+                        <ul style="margin: 0; padding-left: 20px;">
+                `;
+                data.errors.forEach(error => {
+                    errorHtml += `<li style="color: #721c24; margin: 5px 0;">${error}</li>`;
+                });
+                errorHtml += `
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            errorHtml += '</div>';
+            document.getElementById('import-results').innerHTML = errorHtml;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('import-results').innerHTML = `
+            <div style="background: #f8d7da; padding: 15px; border-radius: 5px;">
+                <p style="color: #721c24; margin: 0;"><strong>Error:</strong> Failed to upload file. Please try again.</p>
+            </div>
+        `;
+    });
+}
+
+function downloadTemplate() {
+    window.location.href = '/transactions/download-template/';
 }
 </script>
 {% endblock %}

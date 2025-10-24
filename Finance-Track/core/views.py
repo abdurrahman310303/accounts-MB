@@ -1255,3 +1255,268 @@ def update_exchange_rates(request):
     
     # GET request - redirect to accounts page
     return redirect('accounts_list')
+
+
+@login_required
+def bulk_import_transactions(request):
+    """Bulk import transactions from CSV or Excel file"""
+    if request.method == 'POST':
+        import pandas as pd
+        from datetime import datetime
+        
+        if 'file' not in request.FILES:
+            return JsonResponse({'success': False, 'message': 'No file uploaded'})
+        
+        file = request.FILES['file']
+        file_name = file.name.lower()
+        
+        try:
+            # Read file based on type
+            if file_name.endswith('.csv'):
+                df = pd.read_csv(file)
+            elif file_name.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(file)
+            else:
+                return JsonResponse({'success': False, 'message': 'Invalid file format. Please upload CSV or Excel file.'})
+            
+            # Process the dataframe
+            success_count = 0
+            error_count = 0
+            errors = []
+            total_rows = len(df)
+            validated_transactions = []  # Store validated transactions before saving
+            
+            # First pass: Validate all rows without creating any transactions
+            for index, row in df.iterrows():
+                try:
+                    # Parse date
+                    transaction_date = pd.to_datetime(row['Date']).date()
+                    
+                    # Get transaction type
+                    transaction_type = str(row['Type']).lower().strip()
+                    if transaction_type not in ['income', 'expense', 'transfer', 'owners_equity']:
+                        errors.append(f"Row {index + 2}: Invalid transaction type '{row['Type']}'")
+                        error_count += 1
+                        continue
+                    
+                    # Get amount
+                    amount = Decimal(str(row['Amount']))
+                    
+                    # Get description
+                    description = str(row['Description'])
+                    
+                    # Get account
+                    account_name = str(row['Account']).strip()
+                    try:
+                        account = Account.objects.get(name=account_name)
+                    except Account.DoesNotExist:
+                        errors.append(f"Row {index + 2}: Account '{account_name}' not found")
+                        error_count += 1
+                        continue
+                    
+                    # Get team (optional for some transaction types)
+                    team = None
+                    if 'Team' in row and pd.notna(row['Team']) and str(row['Team']).strip():
+                        team_name = str(row['Team']).strip()
+                        try:
+                            team = Team.objects.get(name=team_name)
+                        except Team.DoesNotExist:
+                            if transaction_type in ['income', 'expense']:
+                                errors.append(f"Row {index + 2}: Team '{team_name}' not found")
+                                error_count += 1
+                                continue
+                    
+                    # Get category (optional for transfers)
+                    category = None
+                    if 'Category' in row and pd.notna(row['Category']) and str(row['Category']).strip():
+                        category_name = str(row['Category']).strip()
+                        # Check if subcategory is provided
+                        subcategory_name = None
+                        if 'Subcategory' in row and pd.notna(row['Subcategory']) and str(row['Subcategory']).strip():
+                            subcategory_name = str(row['Subcategory']).strip()
+                        
+                        if subcategory_name:
+                            # Look for subcategory under the main category
+                            try:
+                                parent_category = Category.objects.get(name=category_name, parent__isnull=True, category_type=transaction_type)
+                                category = Category.objects.get(name=subcategory_name, parent=parent_category)
+                            except Category.DoesNotExist:
+                                errors.append(f"Row {index + 2}: Subcategory '{subcategory_name}' not found under '{category_name}'")
+                                error_count += 1
+                                continue
+                        else:
+                            # Look for main category
+                            try:
+                                category = Category.objects.get(name=category_name, parent__isnull=True, category_type=transaction_type)
+                            except Category.DoesNotExist:
+                                errors.append(f"Row {index + 2}: Category '{category_name}' not found")
+                                error_count += 1
+                                continue
+                    
+                    # Get counter party account for transfers
+                    counter_party_account = None
+                    if transaction_type == 'transfer':
+                        if 'Counter Party Account' in row and pd.notna(row['Counter Party Account']) and str(row['Counter Party Account']).strip():
+                            counter_party_name = str(row['Counter Party Account']).strip()
+                            try:
+                                counter_party_account = Account.objects.get(name=counter_party_name)
+                            except Account.DoesNotExist:
+                                errors.append(f"Row {index + 2}: Counter Party Account '{counter_party_name}' not found")
+                                error_count += 1
+                                continue
+                        else:
+                            errors.append(f"Row {index + 2}: Counter Party Account required for transfer")
+                            error_count += 1
+                            continue
+                    
+                    # Validate category and subcategory for expense transactions
+                    if transaction_type == 'expense':
+                        if not category:
+                            errors.append(f"Row {index + 2}: Category is required for expense transactions")
+                            error_count += 1
+                            continue
+                        if not category.parent:
+                            errors.append(f"Row {index + 2}: Subcategory is required for expense transactions")
+                            error_count += 1
+                            continue
+                    
+                    # Get exchange rate and validate based on account currency
+                    exchange_rate = None
+                    if 'Exchange Rate' in row and pd.notna(row['Exchange Rate']):
+                        try:
+                            exchange_rate = Decimal(str(row['Exchange Rate']))
+                        except:
+                            pass
+                    
+                    # Check if USD account is involved
+                    account_is_usd = account.currency and account.currency.code == 'USD'
+                    counter_party_is_usd = counter_party_account and counter_party_account.currency and counter_party_account.currency.code == 'USD'
+                    
+                    # Validate exchange rate requirement
+                    if account_is_usd or counter_party_is_usd:
+                        if not exchange_rate:
+                            errors.append(f"Row {index + 2}: Exchange rate is required when USD account is involved")
+                            error_count += 1
+                            continue
+                    
+                    # Store validated transaction data (don't create yet)
+                    validated_transactions.append({
+                        'transaction_type': transaction_type,
+                        'amount': amount,
+                        'description': description,
+                        'transaction_date': transaction_date,
+                        'account': account,
+                        'team': team,
+                        'category': category,
+                        'counter_party_account': counter_party_account,
+                        'exchange_rate': exchange_rate,
+                    })
+                    
+                except Exception as e:
+                    errors.append(f"Row {index + 2}: {str(e)}")
+                    error_count += 1
+            
+            # If there are any errors, don't create any transactions
+            if error_count > 0:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Validation failed. Found {error_count} error(s). No transactions were imported.',
+                    'total': total_rows,
+                    'error_count': error_count,
+                    'errors': errors[:20]  # Limit to first 20 errors
+                })
+            
+            # Second pass: Create all transactions (only if no errors)
+            for transaction_data in validated_transactions:
+                try:
+                    # Create transaction
+                    transaction = Transaction(
+                        transaction_type=transaction_data['transaction_type'],
+                        amount=transaction_data['amount'],
+                        description=transaction_data['description'],
+                        transaction_date=transaction_data['transaction_date'],
+                        account=transaction_data['account'],
+                        team=transaction_data['team'],
+                        category=transaction_data['category'],
+                        counter_party_account=transaction_data['counter_party_account'],
+                        created_by=request.user
+                    )
+                    
+                    # Set exchange rate if provided
+                    if transaction_data['exchange_rate']:
+                        transaction.exchange_rate_to_pkr = transaction_data['exchange_rate']
+                    
+                    transaction.save()
+                    success_count += 1
+                    
+                except Exception as e:
+                    # This shouldn't happen since we already validated, but just in case
+                    errors.append(f"Error creating transaction: {str(e)}")
+                    error_count += 1
+            
+            return JsonResponse({
+                'success': True,
+                'total': total_rows,
+                'success_count': success_count,
+                'error_count': error_count,
+                'errors': errors[:20]  # Limit to first 20 errors
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'Error processing file: {str(e)}'})
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+
+@login_required
+def download_template(request):
+    """Download transaction import template"""
+    import csv
+    from django.http import HttpResponse
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="transaction_import_template.csv"'
+    
+    writer = csv.writer(response)
+    
+    # Write header
+    writer.writerow([
+        'Date', 'Type', 'Amount', 'Description', 'Account', 'Team', 
+        'Category', 'Subcategory', 'Counter Party Account', 'Exchange Rate'
+    ])
+    
+    # Write example rows with REAL data from your database
+    writer.writerow([
+        '2024-01-15', 'income', '25000.00', 'Admob earnings from mobile apps', 
+        'Cash / Counter', 'Astro Verse', 'Admob income', '', '', '1.0000', 'January 2024 earnings'
+    ])
+    writer.writerow([
+        '2024-01-16', 'expense', '15000.00', 'Facebook marketing campaign', 
+        'Cash / Counter', 'Astro Verse', 'Advertising Expense', 'FB Marketing', '', '1.0000', 'Q1 marketing budget'
+    ])
+    writer.writerow([
+        '2024-01-17', 'expense', '100.00', 'Google Adwords campaign', 
+        'Astro Verse', 'Astro Verse', 'Advertising Expense', 'Adwords', '', '300.0000', 'USD payment'
+    ])
+    writer.writerow([
+        '2024-01-18', 'expense', '50000.00', 'Monthly office rent', 
+        'Cash / Counter', 'Go Jins', 'Company Expense', 'Rent or lease payments', '', '1.0000', 'January rent'
+    ])
+    writer.writerow([
+        '2024-01-19', 'transfer', '10000.00', 'Transfer to USD account', 
+        'Cash / Counter', '', '', '', 'Astro Verse', '1.0000', 'Moving funds to USD'
+    ])
+    writer.writerow([
+        '2024-01-20', 'owners_equity', '20000.00', 'Monthly drawings', 
+        'Cash / Counter', '', 'Kashif Drawings', '', '', '1.0000', 'Personal withdrawal'
+    ])
+    writer.writerow([
+        '2024-01-21', 'income', '18000.00', 'Applovin ad revenue', 
+        'Cash / Counter', 'Astro Verse', 'Applovin', '', '', '1.0000', 'App monetization'
+    ])
+    writer.writerow([
+        '2024-01-22', 'expense', '80000.00', 'Employee salaries', 
+        'Cash / Counter', 'Go Jins', 'Company Expense', 'Payroll Expenses', '', '1.0000', 'Monthly payroll'
+    ])
+    
+    return response
